@@ -1,0 +1,16 @@
+export type Entity={id:string;slug:string;name:string;country:string;base_currency:string;is_mock:boolean;contract_count:number;as_of_date:string};
+export type Contract={contract_id:string;product:string;currency:string;principal:string;annual_rate?:string;repayment?:string;rate_type?:string;interest_rate_index?:string;client_rate_spread?:string;rate_cap?:string;rate_floor?:string;day_count?:string;frequency_months?:number;accrual_start?:string;next_payment?:string;maturity?:string;end_of_month?:boolean;status?:string};
+export type Portfolio={entity:Entity;as_of_date:string;bucket_days:number[];revision:number;contracts:Contract[]};
+export type Input={entity:string;as_of_date:string;bucket_days:number[];contracts:Contract[]};
+export type Bucket={bucket:string;inflow_principal:string;inflow_interest:string;outflow_principal:string;outflow_interest:string;inflows:string;outflows:string;net_gap:string;cumulative_gap:string};
+export type Flow={contract_id:string;product:string;currency:string;direction:string;payment_date:string;accrual_start:string;accrual_end:string;principal:string;interest:string;total:string;remaining_principal:string;bucket:string};
+export type Control={currency:string;scheduled_balance:string;generated_principal:string;difference:string;undated_balance:string;passed:boolean};
+export type Exception={row:number;contract_id:string;error:string};
+export type Validation={accepted_count:number;rejected_count:number;cashflow_count:number;exceptions:Exception[];controls:Control[];undated:{contract_id:string;currency:string;balance:string;reason:string}[]};
+export type LadderRow={section:string;key:string;label:string;kind:'normal'|'subtotal'|'gap'|'cumulative';principal:string[];interest:string[];total:string[]};
+export type BankLadder={buckets:{code:string;label:string}[];rows:LadderRow[]};
+export type Result=Validation&{engine_version:string;as_of_date:string;entity:string;bucket_days:number[];input_count:number;currencies:string[];summary:Record<string,Bucket[]>;bank_ladder:Record<string,BankLadder>;interest_projection:'constant'|'forward_curve';contracts:(Contract&{direction:string;payments?:number;total_interest?:string;principal_check?:boolean})[];basis:string;status:string};
+export type ForwardCurvePoint={currency:string;index:string;tenor_days:number;rate:string};
+export type EntitySettings={as_of_date:string;interest_projection:'constant'|'forward_curve';forward_curve:ForwardCurvePoint[];updated:string};
+export type Run={id:string;created:string;status:string;progress:number;error:string;as_of_date:string;entity:string;entity_name:string;is_mock:boolean;engine_version:string;result?:Result|null;input_hash?:string;started?:string;finished?:string};
+export type Session={username:string;is_staff:boolean};

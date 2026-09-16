@@ -1,0 +1,16 @@
+services:
+  - type: web
+    runtime: python
+    name: alm-liquidity-demo-moayyad
+    plan: free
+    buildCommand: pip install -r requirements-deploy.txt && python manage.py collectstatic --noinput
+    startCommand: bash render_start.sh
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "0"
+      - key: TASK_BACKEND
+        value: inline
+      - key: DJANGO_ALLOWED_HOSTS
+        value: .onrender.com
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: https://alm-liquidity-demo-moayyad.onrender.com

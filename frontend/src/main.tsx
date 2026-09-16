@@ -1,0 +1,22 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import {ThemeProvider,CssBaseline,Alert,Box} from '@mui/material';
+import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
+import {HashRouter,Routes,Route} from 'react-router-dom';
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+import {theme} from './theme';
+import {WorkspaceProvider} from './context';
+import Shell from './components/Shell';
+const Overview=React.lazy(()=>import('./pages/Overview'));
+const Portfolio=React.lazy(()=>import('./pages/Portfolio'));
+const NewCalculation=React.lazy(()=>import('./pages/NewCalculation'));
+const History=React.lazy(()=>import('./pages/History'));
+const Results=React.lazy(()=>import('./pages/Results'));
+const Entities=React.lazy(()=>import('./pages/Entities'));
+const Settings=React.lazy(()=>import('./pages/Settings'));
+const client=new QueryClient({defaultOptions:{queries:{retry:1,staleTime:15000,refetchOnWindowFocus:false}}});
+class ErrorBoundary extends React.Component<{children:React.ReactNode},{error:string}>{state={error:''};static getDerivedStateFromError(error:Error){return {error:error.message};}render(){return this.state.error?<Box p={5}><Alert severity="error">The interface encountered a problem. Reload the page. Your saved data remains on the server. {this.state.error}</Alert></Box>:this.props.children;}}
+ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><ThemeProvider theme={theme}><CssBaseline/><ErrorBoundary><QueryClientProvider client={client}><WorkspaceProvider><HashRouter><React.Suspense fallback={<Box sx={{p:4}}>Loading workspace…</Box>}><Routes><Route element={<Shell/>}><Route index element={<Overview/>}/><Route path="portfolio" element={<Portfolio/>}/><Route path="new" element={<NewCalculation/>}/><Route path="runs" element={<History/>}/><Route path="results" element={<Results/>}/><Route path="results/:id" element={<Results/>}/><Route path="settings" element={<Settings/>}/><Route path="entities" element={<Entities/>}/><Route path="*" element={<Overview/>}/></Route></Routes></React.Suspense></HashRouter></WorkspaceProvider></QueryClientProvider></ErrorBoundary></ThemeProvider></React.StrictMode>);

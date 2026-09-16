@@ -1,0 +1,916 @@
+openapi: 3.0.3
+info:
+  title: Contractual Liquidity API
+  version: 0.3.0
+  description: Django/DRF API for contractual cash-flow runs. Decimal amounts are
+    strings. Runs are private to their submitting user.
+paths:
+  /api/v1/entities:
+    get:
+      operationId: entities_list
+      tags:
+      - entities
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+          description: ''
+    post:
+      operationId: entities_create
+      tags:
+      - entities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+          description: ''
+  /api/v1/entities/{slug}:
+    get:
+      operationId: entities_retrieve
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - entities
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+          description: ''
+  /api/v1/entities/{slug}/portfolio:
+    get:
+      operationId: entities_portfolio_retrieve
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - entities
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioResponse'
+          description: ''
+    put:
+      operationId: entities_portfolio_update
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - entities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioInputRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioResponse'
+          description: ''
+  /api/v1/health:
+    get:
+      operationId: health_retrieve
+      tags:
+      - health
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
+  /api/v1/runs:
+    get:
+      operationId: runs_list
+      parameters:
+      - in: query
+        name: entity
+        schema:
+          type: string
+        description: Filter runs by entity slug.
+      tags:
+      - runs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RunPage'
+          description: ''
+    post:
+      operationId: runs_create
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        description: Optional unique request key, 1–128 characters. Reusing it with
+          identical input returns the same run.
+      tags:
+      - runs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunInputRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunAccepted'
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunAccepted'
+          description: ''
+        '409':
+          description: Idempotency conflict
+  /api/v1/runs/{id}:
+    get:
+      operationId: runs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{36}$
+        required: true
+      tags:
+      - runs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetail'
+          description: ''
+  /api/v1/runs/{id}/cashflows:
+    get:
+      operationId: runs_cashflows_retrieve
+      parameters:
+      - in: query
+        name: contract_id
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+      - in: query
+        name: currency
+        schema:
+          enum:
+          - JOD
+          - USD
+          - EUR
+          - GBP
+          type: string
+          minLength: 1
+        description: |-
+          * `JOD` - JOD
+          * `USD` - USD
+          * `EUR` - EUR
+          * `GBP` - GBP
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{36}$
+        required: true
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          default: 200
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - in: query
+        name: product
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 32
+      tags:
+      - runs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowPage'
+          description: ''
+  /api/v1/runs/{id}/cashflows.csv:
+    get:
+      operationId: runs_cashflows.csv_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{36}$
+        required: true
+      tags:
+      - runs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /api/v1/runs/{id}/input:
+    get:
+      operationId: runs_input_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{36}$
+        required: true
+      tags:
+      - runs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunInput'
+          description: ''
+  /api/v1/runs/{id}/result.json:
+    get:
+      operationId: runs_result.json_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{36}$
+        required: true
+      tags:
+      - runs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/runs/{id}/summary.csv:
+    get:
+      operationId: runs_summary.csv_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{36}$
+        required: true
+      tags:
+      - runs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /api/v1/sample:
+    get:
+      operationId: sample_retrieve
+      tags:
+      - sample
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunInput'
+          description: ''
+  /api/v1/session:
+    get:
+      operationId: session_retrieve
+      tags:
+      - session
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
+  /api/v1/validate:
+    post:
+      operationId: validate_create
+      tags:
+      - validate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunInputRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+          description: ''
+components:
+  schemas:
+    CashFlow:
+      type: object
+      properties:
+        contract_id:
+          type: string
+          maxLength: 64
+        product:
+          type: string
+          maxLength: 32
+        currency:
+          type: string
+          maxLength: 3
+        direction:
+          type: string
+          maxLength: 8
+        payment_date:
+          type: string
+          format: date
+        accrual_start:
+          type: string
+          format: date
+        accrual_end:
+          type: string
+          format: date
+        days_from_asof:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        principal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,21}(?:\.\d{0,3})?$
+        interest:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,21}(?:\.\d{0,3})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,21}(?:\.\d{0,3})?$
+        remaining_principal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,21}(?:\.\d{0,3})?$
+        bucket:
+          type: string
+          maxLength: 64
+      required:
+      - accrual_end
+      - accrual_start
+      - bucket
+      - contract_id
+      - currency
+      - days_from_asof
+      - direction
+      - interest
+      - payment_date
+      - principal
+      - product
+      - remaining_principal
+      - total
+    Entity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 64
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 80
+        country:
+          type: string
+          maxLength: 80
+        base_currency:
+          type: string
+          maxLength: 3
+        is_mock:
+          type: boolean
+        contract_count:
+          type: integer
+          readOnly: true
+        as_of_date:
+          type: string
+          format: date
+          readOnly: true
+      required:
+      - as_of_date
+      - contract_count
+      - id
+      - name
+      - slug
+    EntityRequest:
+      type: object
+      properties:
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        country:
+          type: string
+          minLength: 1
+          maxLength: 80
+        base_currency:
+          type: string
+          minLength: 1
+          maxLength: 3
+        is_mock:
+          type: boolean
+      required:
+      - name
+      - slug
+    FlowPage:
+      type: object
+      properties:
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+        cashflows:
+          type: array
+          items:
+            $ref: '#/components/schemas/CashFlow'
+      required:
+      - cashflows
+      - limit
+      - offset
+      - total
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+        framework:
+          type: string
+      required:
+      - framework
+      - status
+      - version
+    PortfolioInputRequest:
+      type: object
+      properties:
+        entity:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[-a-zA-Z0-9_]+$
+        as_of_date:
+          type: string
+          format: date
+        bucket_days:
+          type: array
+          items:
+            type: integer
+            maximum: 36500
+            minimum: 1
+          default:
+          - 1
+          - 7
+          - 14
+          - 30
+          - 60
+          - 90
+          - 180
+          - 270
+          - 365
+          - 730
+          - 1095
+          - 1825
+          maxItems: 30
+          minItems: 1
+        contracts:
+          type: array
+          items: {}
+          description: Contract objects. Individual invalid/unsupported contracts
+            appear in run exceptions; see sample endpoint and API guide for fields.
+          maxItems: 2000
+          minItems: 1
+        expected_revision:
+          type: integer
+          minimum: 1
+      required:
+      - as_of_date
+      - contracts
+      - entity
+      - expected_revision
+    PortfolioResponse:
+      type: object
+      properties:
+        entity:
+          $ref: '#/components/schemas/Entity'
+        contracts:
+          type: array
+          items: {}
+        as_of_date:
+          type: string
+          format: date
+        bucket_days:
+          type: array
+          items:
+            type: integer
+        revision:
+          type: integer
+      required:
+      - as_of_date
+      - bucket_days
+      - contracts
+      - entity
+      - revision
+    RunAccepted:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        status_url:
+          type: string
+        reused:
+          type: boolean
+      required:
+      - id
+      - reused
+      - status
+      - status_url
+    RunDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        progress:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        error:
+          type: string
+        as_of_date:
+          type: string
+          format: date
+        entity:
+          type: string
+          readOnly: true
+        entity_name:
+          type: string
+          readOnly: true
+        is_mock:
+          type: boolean
+          readOnly: true
+        engine_version:
+          type: string
+          maxLength: 32
+        started:
+          type: string
+          format: date-time
+          nullable: true
+        finished:
+          type: string
+          format: date-time
+          nullable: true
+        heartbeat:
+          type: string
+          format: date-time
+          nullable: true
+        input_hash:
+          type: string
+          maxLength: 64
+        result:
+          readOnly: true
+      required:
+      - as_of_date
+      - created
+      - engine_version
+      - entity
+      - entity_name
+      - id
+      - input_hash
+      - is_mock
+      - result
+    RunInput:
+      type: object
+      properties:
+        entity:
+          type: string
+          maxLength: 64
+          pattern: ^[-a-zA-Z0-9_]+$
+        as_of_date:
+          type: string
+          format: date
+        bucket_days:
+          type: array
+          items:
+            type: integer
+            maximum: 36500
+            minimum: 1
+          default:
+          - 1
+          - 7
+          - 14
+          - 30
+          - 60
+          - 90
+          - 180
+          - 270
+          - 365
+          - 730
+          - 1095
+          - 1825
+          maxItems: 30
+          minItems: 1
+        contracts:
+          type: array
+          items: {}
+          description: Contract objects. Individual invalid/unsupported contracts
+            appear in run exceptions; see sample endpoint and API guide for fields.
+          maxItems: 2000
+          minItems: 1
+      required:
+      - as_of_date
+      - contracts
+      - entity
+    RunInputRequest:
+      type: object
+      properties:
+        entity:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^[-a-zA-Z0-9_]+$
+        as_of_date:
+          type: string
+          format: date
+        bucket_days:
+          type: array
+          items:
+            type: integer
+            maximum: 36500
+            minimum: 1
+          default:
+          - 1
+          - 7
+          - 14
+          - 30
+          - 60
+          - 90
+          - 180
+          - 270
+          - 365
+          - 730
+          - 1095
+          - 1825
+          maxItems: 30
+          minItems: 1
+        contracts:
+          type: array
+          items: {}
+          description: Contract objects. Individual invalid/unsupported contracts
+            appear in run exceptions; see sample endpoint and API guide for fields.
+          maxItems: 2000
+          minItems: 1
+      required:
+      - as_of_date
+      - contracts
+      - entity
+    RunList:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        progress:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        error:
+          type: string
+        as_of_date:
+          type: string
+          format: date
+        entity:
+          type: string
+          readOnly: true
+        entity_name:
+          type: string
+          readOnly: true
+        is_mock:
+          type: boolean
+          readOnly: true
+        engine_version:
+          type: string
+          maxLength: 32
+      required:
+      - as_of_date
+      - created
+      - engine_version
+      - entity
+      - entity_name
+      - id
+      - is_mock
+    RunPage:
+      type: object
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunList'
+      required:
+      - runs
+    Session:
+      type: object
+      properties:
+        username:
+          type: string
+        is_staff:
+          type: boolean
+      required:
+      - is_staff
+      - username
+    StatusEnum:
+      enum:
+      - queued
+      - running
+      - completed
+      - completed_with_exceptions
+      - failed_validation
+      - failed
+      - interrupted
+      type: string
+      description: |-
+        * `queued` - Queued
+        * `running` - Running
+        * `completed` - Completed
+        * `completed_with_exceptions` - Completed with exceptions
+        * `failed_validation` - Failed validation
+        * `failed` - Failed
+        * `interrupted` - Interrupted
+    ValidationResponse:
+      type: object
+      properties:
+        accepted_count:
+          type: integer
+        rejected_count:
+          type: integer
+        cashflow_count:
+          type: integer
+        exceptions:
+          type: array
+          items: {}
+        controls:
+          type: array
+          items: {}
+        undated:
+          type: array
+          items: {}
+      required:
+      - accepted_count
+      - cashflow_count
+      - controls
+      - exceptions
+      - rejected_count
+      - undated
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"

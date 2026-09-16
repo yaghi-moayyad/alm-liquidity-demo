@@ -1,0 +1,30 @@
+{% load static %}
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liquidity Django · API reference</title><link rel="stylesheet" href="{% static 'liquidity/style.css' %}"></head><body class="docs"><main><header><div><div class="eyebrow">LIQUIDITY DJANGO / API v1 / React + Django + DRF</div><h1>One API for every client</h1><p>The browser interface calls these same local endpoints.</p></div><a class="button" href="/">Back to workspace</a></header><div class="notice">Authenticated API. Browser clients use Django sessions and CSRF. Integration clients can use a DRF token locally; use HTTPS and the bank’s identity platform for deployment.</div><div class="panel"><div class="panel-head"><h2>Start a calculation</h2></div><div class="panel-inner"><p>Get the synthetic input, then POST it to create a run. HTTP 202 returns a run ID immediately. Poll until terminal status. Runs and their input snapshots survive a restart.</p><pre>python manage.py drf_create_token YOUR_USERNAME
+
+# Substitute the token printed by the command:
+curl -H "Authorization: Token YOUR_TOKEN" http://127.0.0.1:8000/api/v1/sample -o input.json
+curl -X POST http://127.0.0.1:8000/api/v1/runs \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -H "Idempotency-Key: example-run-001" --data-binary @input.json
+
+{"id": "...", "status": "queued", "status_url": "/api/v1/runs/..."}</pre><p>Use the returned ID in subsequent calls. Use an Idempotency-Key to deduplicate retries. Identical input with the same key returns the existing run (HTTP 200); changed input returns HTTP 409. Keys are scoped to the authenticated user.</p></div></div><div class="panel"><div class="panel-head"><h2>OpenAPI contract</h2></div><div class="panel-inner"><p><a href="/api/v1/schema">Download the generated OpenAPI schema</a> · <a href="/api/v1/runs">Browse the DRF run API</a> · <a href="/admin/">Django admin</a></p><p>The schema is generated from DRF views and serializers. Monetary outputs are decimal strings. Run status and detailed cash flows are stored through the Django ORM, with migrations.</p></div></div><div class="panel"><div class="panel-head"><h2>Endpoints</h2></div><div class="table-wrap"><table><thead><tr><th>Method / path</th><th>Returns</th></tr></thead><tbody><tr><td>GET /api/v1/entities</td><td>Available entities and portfolio counts</td></tr><tr><td>POST /api/v1/entities</td><td>Create entity (staff)</td></tr><tr><td>GET /api/v1/entities/{slug}/portfolio</td><td>Saved contracts, settings and revision</td></tr><tr><td>PUT /api/v1/entities/{slug}/portfolio</td><td>Save portfolio with expected_revision (staff)</td></tr><tr><td>POST /api/v1/validate</td><td>Calculation readiness without saving a run</td></tr><tr><td>GET /api/v1/health</td><td>Version and health</td></tr><tr><td>GET /api/v1/sample</td><td>Complete synthetic input</td></tr><tr><td>POST /api/v1/runs</td><td>202: run ID and status URL</td></tr><tr><td>GET /api/v1/runs</td><td>Latest 50 run records</td></tr><tr><td>GET /api/v1/runs/{id}</td><td>Status, progress and summaries after completion</td></tr><tr><td>GET /api/v1/runs/{id}/input</td><td>Original input snapshot</td></tr><tr><td>GET /api/v1/runs/{id}/cashflows</td><td>Paginated cash flows</td></tr><tr><td>GET /api/v1/runs/{id}/cashflows.csv</td><td>Full cash-flow export</td></tr><tr><td>GET /api/v1/runs/{id}/summary.csv</td><td>All currency maturity ladders</td></tr><tr><td>GET /api/v1/runs/{id}/result.json</td><td>Complete result and controls</td></tr></tbody></table></div><div class="panel-inner"><p>Cash-flow filters: <code>contract_id</code>, <code>currency</code>, <code>product</code>, <code>offset</code>, <code>limit</code> (maximum 1,000).</p><p>Statuses: queued → running → completed / completed_with_exceptions / failed_validation / failed. Queued jobs survive restarts. Running jobs interrupted by a crash require the explicit recover_runs management command after stopping the old worker. Configuration errors return HTTP 400; invalid contracts become result exceptions. Error responses use <code>{"error":"message"}</code>.</p></div></div><div class="panel"><div class="panel-head"><h2>Contract input</h2></div><div class="panel-inner"><pre>{
+  "entity": "jordan-mock",
+  "as_of_date": "2026-09-16",
+  "bucket_days": [1, 7, 14, 30, 90, 365],
+  "contracts": [{
+    "contract_id": "LN-001",
+    "product": "loan",
+    "currency": "JOD",
+    "principal": "120000.000",
+    "annual_rate": "0.06",
+    "rate_type": "fixed",
+    "repayment": "equal_principal",
+    "day_count": "ACT/365F",
+    "frequency_months": 3,
+    "accrual_start": "2026-07-01",
+    "next_payment": "2026-10-01",
+    "maturity": "2027-07-01",
+    "end_of_month": false
+  }]
+}</pre><p>Required for all contracts: contract_id, product, currency, principal. Dated contracts additionally require annual_rate, repayment, day_count, frequency_months, accrual_start, next_payment and maturity. Optional defaults: rate_type=fixed, end_of_month=false, status=performing.</p><p>Products: loan, bond and interbank_asset are inflows; term_deposit and borrowing are outflows. demand_deposit is an undated liability disclosure, accepting balance fields only. Unknown fields are rejected per contract to avoid silently ignoring terms.</p><p>Currencies: JOD (3 decimals), USD / EUR / GBP (2 decimals). Rates use decimals, not percentages. Payment dates must be strictly after the reporting date. No holiday adjustments. Bucket boundaries are exact elapsed calendar days, not calendar months.</p><p>Currency amounts in result JSON are decimal strings. Dates are YYYY-MM-DD. Inputs: maximum 2,000 contracts and 4 MB. No bulk bank-data connector is included yet.</p></div></div></main></body></html>
