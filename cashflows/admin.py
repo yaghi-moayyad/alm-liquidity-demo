@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption
 
 @admin.register(CalculationRun)
 class RunAdmin(admin.ModelAdmin):
@@ -24,3 +24,15 @@ class FlowAdmin(admin.ModelAdmin):
 admin.site.register(Entity)
 admin.site.register(EntityConfiguration)
 admin.site.register(PortfolioContract)
+
+@admin.register(LiquidityAssumptionSet)
+class LiquidityAssumptionSetAdmin(admin.ModelAdmin):
+    list_display = ['name','entity','version','status','effective_date','updated']
+    list_filter = ['status','entity']
+    search_fields = ['name','entity__slug']
+
+@admin.register(LiquidityAssumption)
+class LiquidityAssumptionAdmin(admin.ModelAdmin):
+    list_display = ['title','assumption_set','category','currency_scope','enabled','updated']
+    list_filter = ['category','enabled','currency_scope']
+    search_fields = ['title','product_group','product_type']

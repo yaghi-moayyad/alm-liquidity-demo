@@ -21,6 +21,15 @@ class Command(BaseCommand):
                 raise CommandError('DEMO_PASSWORD is required when creating a demo user.')
             user=users.objects.create_superuser(username=username,password=password,email='')
             self.stdout.write(self.style.WARNING(f'Created demo administrator {username}. Use the password supplied to this command or DEMO_PASSWORD.'))
+        elif user is not None and options['create_user']:
+            # This intentional demo account must remain a real full administrator
+            # if a previous deployment created it with lesser privileges.
+            password=options['password']
+            changed=[]
+            if not user.is_staff: user.is_staff=True; changed.append('is_staff')
+            if not user.is_superuser: user.is_superuser=True; changed.append('is_superuser')
+            if password: user.set_password(password); changed.append('password')
+            if changed: user.save(update_fields=list(dict.fromkeys(changed)))
         if user is None: raise CommandError('Create a user first, or supply --username with --create-user.')
         entity=Entity.objects.get(slug='jordan-mock')
         existing=CalculationRun.objects.filter(owner=user,entity_ref=entity)

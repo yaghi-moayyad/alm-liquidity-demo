@@ -7,7 +7,7 @@ from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 from .engine import calculate, VERSION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumptionSet
 
 logger=logging.getLogger(__name__)
 
@@ -21,11 +21,23 @@ def input_fingerprint(payload):
 
 
 def hydrate_run_payload(payload):
-    """Attach entity interest settings so each submitted run is reproducible."""
+    """Attach saved settings and behavioural rules so each run is reproducible."""
     hydrated=dict(payload)
     config=EntityConfiguration.objects.get(entity__slug=payload['entity'])
     hydrated['interest_projection']=config.interest_projection
     hydrated['forward_curve']=config.forward_curve
+    assumption_set = (LiquidityAssumptionSet.objects.filter(entity__slug=payload['entity'], status='active')
+                      .prefetch_related('rules').first())
+    if assumption_set:
+        hydrated['behavioral_assumption_set']={
+            'id': assumption_set.pk, 'name': assumption_set.name, 'version': assumption_set.version,
+            'effective_date': assumption_set.effective_date.isoformat(), 'source': assumption_set.source,
+            'base_currency': config.entity.base_currency,
+            'rules': [{'id':rule.pk, 'category':rule.category, 'title':rule.title, 'product_group':rule.product_group,
+                'product_type':rule.product_type, 'currency_scope':rule.currency_scope,
+                'maturity_breakdown':rule.maturity_breakdown, 'value':rule.value, 'enabled':rule.enabled}
+                for rule in assumption_set.rules.all()],
+        }
     return hydrated
 
 

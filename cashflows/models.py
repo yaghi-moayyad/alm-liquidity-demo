@@ -24,6 +24,57 @@ class EntityConfiguration(models.Model):
     revision = models.PositiveIntegerField(default=1)
     updated = models.DateTimeField(auto_now=True)
 
+
+class LiquidityAssumptionSet(models.Model):
+    """A versioned, entity-scoped set of behavioural liquidity rules."""
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        DRAFT = 'draft', 'Draft'
+        RETIRED = 'retired', 'Retired'
+
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='assumption_sets')
+    name = models.CharField(max_length=120)
+    version = models.PositiveIntegerField(default=1)
+    effective_date = models.DateField()
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    source = models.CharField(max_length=160, default='Jordan liquidity assumptions workbook')
+    is_system = models.BooleanField(default=False)
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-effective_date', '-version']
+        constraints = [models.UniqueConstraint(fields=['entity', 'name'], name='unique_entity_assumption_set_name')]
+
+    def __str__(self):
+        return f'{self.entity.slug} · {self.name} v{self.version}'
+
+
+class LiquidityAssumption(models.Model):
+    class Category(models.TextChoices):
+        DEPOSIT_RUNOFF = 'deposit_runoff', 'Deposit runoff'
+        SECURITY_LIQUIDATION = 'security_liquidation', 'Security liquidation'
+        SECURITY_HAIRCUT = 'security_haircut', 'Security haircut'
+
+    assumption_set = models.ForeignKey(LiquidityAssumptionSet, on_delete=models.CASCADE, related_name='rules')
+    category = models.CharField(max_length=32, choices=Category.choices)
+    title = models.CharField(max_length=160)
+    product_group = models.CharField(max_length=96, blank=True)
+    product_type = models.CharField(max_length=96, blank=True)
+    currency_scope = models.CharField(max_length=8, default='ALL')
+    maturity_breakdown = models.CharField(max_length=32, blank=True)
+    value = models.JSONField(default=dict)
+    enabled = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category', 'sort_order', 'title']
+
+    def __str__(self):
+        return self.title
+
 class PortfolioContract(models.Model):
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='portfolio_contracts')
     external_id = models.CharField(max_length=64)
@@ -89,6 +140,8 @@ class CashFlow(models.Model):
     sequence = models.PositiveIntegerField()
     contract_id = models.CharField(max_length=64)
     product = models.CharField(max_length=32)
+    liquidity_product = models.CharField(max_length=96, blank=True)
+    liquidity_group = models.CharField(max_length=96, blank=True)
     currency = models.CharField(max_length=3)
     direction = models.CharField(max_length=8)
     payment_date = models.DateField()

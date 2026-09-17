@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from .engine import validate_config, MAX_CONTRACTS, DEFAULT_BUCKETS, PRECISION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumption, LiquidityAssumptionSet
 
 class RunInputSerializer(serializers.Serializer):
     entity = serializers.SlugField(max_length=64)
@@ -11,6 +11,7 @@ class RunInputSerializer(serializers.Serializer):
     bucket_days = serializers.ListField(child=serializers.IntegerField(min_value=1,max_value=36500),default=list(DEFAULT_BUCKETS),min_length=1,max_length=30)
     contracts = serializers.ListField(child=serializers.JSONField(),min_length=1,max_length=MAX_CONTRACTS,
         help_text='Contract objects. Individual invalid/unsupported contracts appear in run exceptions; see sample endpoint and API guide for fields.')
+    calculation_basis = serializers.ChoiceField(choices=['contractual','behavioral'], default='contractual', required=False)
 
     def to_internal_value(self, data):
         if isinstance(data,Mapping):
@@ -123,6 +124,19 @@ class EntitySettingsSerializer(serializers.ModelSerializer):
         if attrs.get('interest_projection',self.instance.interest_projection if self.instance else 'constant') == 'forward_curve' and not attrs.get('forward_curve', self.instance.forward_curve if self.instance else []):
             raise serializers.ValidationError({'forward_curve':'Add at least one curve point before using the market forward curve.'})
         return attrs
+
+class LiquidityAssumptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=LiquidityAssumption
+        fields=['id','category','title','product_group','product_type','currency_scope','maturity_breakdown','value','enabled','sort_order','updated']
+        read_only_fields=['id','updated']
+
+class LiquidityAssumptionSetSerializer(serializers.ModelSerializer):
+    rules=LiquidityAssumptionSerializer(many=True,read_only=True)
+    class Meta:
+        model=LiquidityAssumptionSet
+        fields=['id','name','version','effective_date','status','source','is_system','updated','rules']
+        read_only_fields=['id','version','updated','is_system']
 
 class PortfolioInputSerializer(RunInputSerializer):
     expected_revision=serializers.IntegerField(min_value=1)

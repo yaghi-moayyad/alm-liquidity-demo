@@ -83,6 +83,22 @@ class EngineTests(unittest.TestCase):
             sum(D(rows[key]['balance']) for key in ('repo', 'retail_call_out', 'retail_time_out', 'intergroup_call_out', 'intergroup_time_out', 'other_bank_call_out', 'other_bank_time_out', 'corporate_call_out', 'corporate_time_out', 'government', 'borrowed_funds', 'other_liabilities_illiquid')),
         )
 
+    def test_behavioural_deposit_curve_moves_open_maturity(self):
+        p=sample()
+        casa=next(c for c in p['contracts'] if c['product']=='demand_deposit')
+        casa.update({'liquidity_group':'Retail Call','liquidity_product':'CurrentAccount'})
+        p['behavioral_assumption_set']={'name':'Test Jordan defaults','base_currency':'JOD','rules':[
+            {'category':'deposit_runoff','product_group':'Retail Call','product_type':'ALL','currency_scope':'LCY','enabled':True,
+             'value':{'curve':[{'days':1,'cumulative':'0.01'},{'days':30,'cumulative':'0.10'}]}},
+        ]}
+        r=calculate(p)
+        contractual={row['key']:row for row in r['bank_ladder']['JOD']['rows']}['retail_call_out']
+        behavioural={row['key']:row for row in r['behavioral_bank_ladder']['JOD']['rows']}['retail_call_out']
+        self.assertEqual(D(contractual['principal'][0]),D(casa['principal']))
+        self.assertEqual(D(behavioural['principal'][1]),D(casa['principal'])*D('.01'))
+        self.assertEqual(D(behavioural['principal'][5]),D(casa['principal'])*D('.09'))
+        self.assertEqual(behavioural['children'][0]['label'],'CurrentAccount')
+
     def test_duplicates_excluded_entirely(self):
         p=sample();p['contracts']=[p['contracts'][0],p['contracts'][0]]
         r=calculate(p)

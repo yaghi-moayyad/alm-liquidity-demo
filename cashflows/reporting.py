@@ -71,24 +71,93 @@ def _zeroes():
 def _add(left, right): return [a + b for a, b in zip(left, right)]
 def _minus(left, right): return [a - b for a, b in zip(left, right)]
 
-def build_bank_ladder(flows, undated, currency, precision):
-    """Return a horizontal contractual ladder in one original currency."""
+def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
+    """Return a horizontal ladder; optional rules create a behavioural view.
+
+    The engine receives a rule snapshot, rather than reading the database, so a
+    completed run remains reproducible after an analyst changes an assumption.
+    """
     data = {key: _zeroes() for _section, key, _label, _kind in ROW_SPEC}
+    details = {}
     bucket_index = {code: i for i, (code, _label, _upper) in enumerate(BANK_BUCKETS)}
+
+    def add_detail(key, product, balance=D(0), principal=None, interest=None):
+        product = product or 'Unclassified'
+        item = details.setdefault((key, product), _zeroes())
+        item['balance'] += balance
+        if principal:
+            for index, value in principal.items(): item['principal'][index] += value
+        if interest:
+            for index, value in interest.items(): item['interest'][index] += value
+
+    rules = (behavioral or {}).get('rules', []) if behavioral else []
+    def find_rule(category, group, product, scope='ALL'):
+        for rule in rules:
+            if not rule.get('enabled', True) or rule.get('category') != category: continue
+            if rule.get('product_group') != group: continue
+            if rule.get('product_type') not in ('', 'ALL', product): continue
+            if rule.get('currency_scope', 'ALL') not in ('ALL', scope): continue
+            return rule
+        return None
+
+    base_currency = (behavioral or {}).get('base_currency', 'JOD')
+    security_principal = {}
     for flow in flows:
         if flow['currency'] != currency: continue
+        if behavioral and flow.get('liquidity_group') == 'Marketable Securities & CDs':
+            security_principal[flow['contract_id']] = security_principal.get(flow['contract_id'], D(0)) + D(flow['principal'])
+            continue
         key = PRODUCT_LINES.get((flow['direction'], flow['product']))
         if not key: continue
         index = bucket_index[bucket_code(flow['days_from_asof'])]
         data[key]['principal'][index] += D(flow['principal'])
         data[key]['interest'][index] += D(flow['interest'])
         data[key]['balance'] += D(flow['principal'])
+        add_detail(key, flow.get('liquidity_product') or flow['product'], D(flow['principal']), {index:D(flow['principal'])}, {index:D(flow['interest'])})
     for item in undated:
         if item['currency'] != currency: continue
         key = PRODUCT_LINES.get((item.get('direction', 'outflow'), item.get('product', 'demand_deposit')))
+        if behavioral and item.get('product') == 'demand_deposit':
+            group = item.get('liquidity_group') or 'Retail Call'
+            product = item.get('liquidity_product') or 'CurrentAccount'
+            scope = 'LCY' if currency == base_currency else 'FCY'
+            rule = find_rule('deposit_runoff', group, product, scope)
+            if rule and key:
+                balance = D(item['balance']); data[key]['balance'] += balance
+                increments = {}; prior = D(0)
+                for point in sorted(rule.get('value', {}).get('curve', []), key=lambda p: int(p.get('days', 0))):
+                    current = D(str(point.get('cumulative', 0)))
+                    increase = max(D(0), current - prior); prior = max(prior, current)
+                    if increase:
+                        index = bucket_index[bucket_code(int(point['days']))]
+                        amount = balance * increase
+                        data[key]['principal'][index] += amount
+                        increments[index] = increments.get(index, D(0)) + amount
+                add_detail(key, product, balance, increments)
+                continue
         if key:
             data[key]['principal'][0] += D(item['balance'])
             data[key]['balance'] += D(item['balance'])
+            add_detail(key, item.get('liquidity_product') or item.get('product'), D(item['balance']), {0:D(item['balance'])})
+
+    # Marketable security liquidation is an additional behavioural capacity. It
+    # uses principal only and applies the approved haircut before the selected
+    # liquidation timing. Contractual coupons remain visible only in the
+    # contractual view, avoiding an invented behavioural interest projection.
+    if behavioral:
+        by_contract = {f['contract_id']: f for f in flows if f['currency'] == currency}
+        for contract_id, balance in security_principal.items():
+            flow = by_contract[contract_id]; product = flow.get('liquidity_product') or 'Tbond'
+            timing = find_rule('security_liquidation', 'Marketable Securities & CDs', product)
+            haircut = find_rule('security_haircut', 'Marketable Securities & CDs', product)
+            if not timing: continue
+            code = timing.get('value', {}).get('timing', '1d')
+            days = {'1d':1, '1w':7, '1w2w':14, '1m':30, '1y':365}.get(code, 1)
+            amount = balance * (D(1) - D(str((haircut or {}).get('value', {}).get('haircut', 0))))
+            index = bucket_index[bucket_code(days)]
+            data['marketable_securities']['balance'] += balance
+            data['marketable_securities']['principal'][index] += amount
+            add_detail('marketable_securities', product, balance, {index:amount})
 
     def sum_rows(keys, field):
         return [sum((data[key][field][i] for key in keys), D(0)) for i in range(len(BANK_BUCKETS))]
@@ -133,9 +202,18 @@ def build_bank_ladder(flows, undated, currency, precision):
     rows=[]
     for section,key,label,kind in ROW_SPEC:
         principal=data[key]['principal']; interest=data[key]['interest']
+        children=[]
+        for (detail_key, product), item in sorted(details.items()):
+            if detail_key != key: continue
+            dp=item['principal']; di=item['interest']
+            children.append({'key': f'{key}:{product}', 'label': product.replace('_', ' '),
+                'balance':str(item['balance'].quantize(precision)),
+                'principal':[str(v.quantize(precision)) for v in dp],
+                'interest':[str(v.quantize(precision)) for v in di],
+                'total':[str((p+i).quantize(precision)) for p,i in zip(dp,di)]})
         rows.append({'section':section,'key':key,'label':label,'kind':kind,
             'balance':str(data[key]['balance'].quantize(precision)),
             'principal':[str(v.quantize(precision)) for v in principal],
             'interest':[str(v.quantize(precision)) for v in interest],
-            'total':[str((p+i).quantize(precision)) for p,i in zip(principal,interest)]})
+            'total':[str((p+i).quantize(precision)) for p,i in zip(principal,interest)], 'children':children})
     return {'buckets':[{'code':code,'label':label} for code,label,_upper in BANK_BUCKETS], 'rows':rows}

@@ -4,7 +4,7 @@ from calendar import monthrange
 from decimal import Decimal, localcontext, ROUND_HALF_UP
 import re
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 MAX_CONTRACTS = 2000
 MAX_PERIODS = 1200
 D = Decimal
@@ -15,7 +15,8 @@ DEFAULT_BUCKETS = [1, 7, 14, 30, 60, 90, 180, 270, 365, 730, 1095, 1825]
 REQUIRED = {'contract_id', 'product', 'currency', 'principal'}
 OPTIONAL = {'annual_rate', 'rate_type', 'repayment', 'day_count', 'frequency_months',
             'accrual_start', 'next_payment', 'maturity', 'end_of_month', 'status',
-            'interest_rate_index', 'client_rate_spread', 'rate_cap', 'rate_floor'}
+            'interest_rate_index', 'client_rate_spread', 'rate_cap', 'rate_floor',
+            'liquidity_product', 'liquidity_group'}
 
 
 def decimal(value, name):
@@ -57,7 +58,7 @@ def year_fraction(start, end, convention):
 def validate_config(payload):
     if not isinstance(payload, dict):
         raise ValueError('Request must be a JSON object')
-    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve'}
+    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve', 'calculation_basis', 'behavioral_assumption_set'}
     if unknown:
         raise ValueError('Unknown request fields: ' + ', '.join(sorted(unknown)))
     asof = parse_date(payload.get('as_of_date'), 'as_of_date')
@@ -132,14 +133,18 @@ def schedule(contract, asof, settings=None):
         raise ValueError('Floating rates require an agreed projection convention')
     base = {'contract_id': cid, 'product': product, 'currency': currency,
             'direction': PRODUCTS[product], 'principal': str(principal.quantize(quantum))}
+    if contract.get('liquidity_product'):
+        base['liquidity_product'] = str(contract['liquidity_product'])
+    if contract.get('liquidity_group'):
+        base['liquidity_group'] = str(contract['liquidity_group'])
     if product in ('demand_deposit', 'cash_central_bank'):
         if set(contract) & {'annual_rate', 'repayment', 'day_count', 'frequency_months',
                             'accrual_start', 'next_payment', 'maturity', 'end_of_month'}:
             raise ValueError('Undated demand deposits accept balance fields only; dated terms need separate rules')
         if product == 'demand_deposit':
-            return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'],
+            return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
                               'reason': 'Open maturity: separately disclosed; no invented withdrawal date or interest schedule'}
-        return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'],
+        return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
                           'reason': 'Cash and central-bank position: separately disclosed as counterbalancing capacity'}
     needed = {'annual_rate', 'repayment', 'day_count', 'frequency_months', 'accrual_start', 'next_payment', 'maturity'}
     if needed - set(contract):
@@ -209,7 +214,9 @@ def schedule(contract, asof, settings=None):
                       'days_from_asof': (end - asof).days,
                       'principal': str(repay.quantize(quantum)), 'interest': str(interest),
                       'total': str((repay + interest).quantize(quantum)),
-                      'remaining_principal': str(balance.quantize(quantum))})
+                      'remaining_principal': str(balance.quantize(quantum)),
+                      'liquidity_product': base.get('liquidity_product', ''),
+                      'liquidity_group': base.get('liquidity_group', '')})
     base.update({'repayment': method, 'day_count': contract['day_count'], 'payments': len(flows),
                  'principal_check': sum(D(f['principal']) for f in flows) == principal,
                  'total_interest': str(sum((D(f['interest']) for f in flows), D(0)).quantize(quantum))})
@@ -277,12 +284,19 @@ def calculate(payload, progress=None):
                 'undated_balance':str(open_total.quantize(PRECISION[cur])), 'passed':scheduled==generated})
         from .reporting import build_bank_ladder
         bank_ladder = {cur: build_bank_ladder(flows, undated, cur, PRECISION[cur]) for cur in currencies}
+        behavioural = payload.get('behavioral_assumption_set')
+        behavioural_ladder = ({cur: build_bank_ladder(flows, undated, cur, PRECISION[cur], behavioural) for cur in currencies}
+                              if behavioural else {})
         projection = payload.get('interest_projection', 'constant')
+        basis = payload.get('calculation_basis', 'contractual')
+        behavioural_name = behavioural.get('name', 'saved behavioural assumptions') if behavioural else None
         return {'engine_version':VERSION, 'as_of_date':asof.isoformat(),'entity':entity,
                 'bucket_days':buckets,'input_count':len(contracts),'accepted_count':len(accepted),
                 'rejected_count':len(exceptions),'cashflow_count':len(flows),
                 'currencies':currencies,'contracts':accepted,'cashflows':flows,'summary':summaries,
                 'exceptions':exceptions,'undated':undated,'controls':controls,'bank_ladder':bank_ladder,
+                'behavioral_bank_ladder':behavioural_ladder, 'calculation_basis':basis,
+                'behavioral_assumption_set': ({k: behavioural[k] for k in ('id','name','version','effective_date','source') if k in behavioural} if behavioural else None),
                 'interest_projection':projection,
-                'basis':f'Contractual undiscounted flows; {"market forward curve" if projection == "forward_curve" else "current rates held constant"} for floating-rate interest; unadjusted payment dates; original currency; no behavioral assumptions',
+                'basis':f'{"Behavioural view available using " + behavioural_name if behavioural else "Contractual"}; {"market forward curve" if projection == "forward_curve" else "current rates held constant"} for floating-rate interest; original currency; saved input snapshot',
                 'status':'failed_validation' if not accepted else ('completed_with_exceptions' if exceptions else 'completed')}

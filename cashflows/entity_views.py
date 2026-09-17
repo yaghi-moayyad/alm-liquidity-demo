@@ -7,8 +7,8 @@ from rest_framework.decorators import action,api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError,APIException
 from drf_spectacular.utils import extend_schema,OpenApiTypes
-from .models import Entity,EntityConfiguration,PortfolioContract
-from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer
+from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption
+from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
 
@@ -67,6 +67,33 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
             serializer.is_valid(raise_exception=True)
             serializer.save()
         return Response(EntitySettingsSerializer(config).data)
+
+    def _assumption_set(self, entity):
+        return LiquidityAssumptionSet.objects.prefetch_related('rules').filter(entity=entity,status='active').first()
+
+    @extend_schema(methods=['GET'],responses=LiquidityAssumptionSetSerializer)
+    @extend_schema(methods=['POST'],request=LiquidityAssumptionSerializer,responses=LiquidityAssumptionSetSerializer)
+    @action(detail=True,methods=['get','post'],url_path='assumptions')
+    def assumptions(self,request,slug=None):
+        entity=self.get_object(); assumption_set=self._assumption_set(entity)
+        if not assumption_set: raise ValidationError('No active behavioural assumption set is configured for this entity.')
+        if request.method=='POST':
+            serializer=LiquidityAssumptionSerializer(data=request.data); serializer.is_valid(raise_exception=True)
+            serializer.save(assumption_set=assumption_set)
+            assumption_set.version += 1; assumption_set.save(update_fields=['version','updated'])
+        return Response(LiquidityAssumptionSetSerializer(self._assumption_set(entity)).data)
+
+    @extend_schema(methods=['PATCH'],request=LiquidityAssumptionSerializer,responses=LiquidityAssumptionSetSerializer)
+    @action(detail=True,methods=['patch','delete'],url_path=r'assumptions/(?P<rule_id>[^/.]+)')
+    def assumption_detail(self,request,slug=None,rule_id=None):
+        entity=self.get_object(); assumption_set=self._assumption_set(entity)
+        rule=LiquidityAssumption.objects.filter(assumption_set=assumption_set,pk=rule_id).first()
+        if not rule: raise ValidationError({'rule_id':'Assumption was not found in this entity.'})
+        if request.method=='DELETE': rule.delete()
+        else:
+            serializer=LiquidityAssumptionSerializer(rule,data=request.data,partial=True); serializer.is_valid(raise_exception=True); serializer.save()
+        assumption_set.version += 1; assumption_set.save(update_fields=['version','updated'])
+        return Response(LiquidityAssumptionSetSerializer(self._assumption_set(entity)).data)
 
 @extend_schema(request=RunInputSerializer,responses=ValidationResponseSerializer)
 @api_view(['POST'])
