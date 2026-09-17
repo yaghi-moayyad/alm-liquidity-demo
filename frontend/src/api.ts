@@ -1,4 +1,4 @@
-import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings,RunContract,LiquidityAssumptionSet,LiquidityAssumption} from './types';
+import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings,RunContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueChoice} from './types';
 export function csrf(){return decodeURIComponent(document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=')[1]||'');}
 export async function request<T>(path:string,options:RequestInit={}):Promise<T>{
  const headers=new Headers(options.headers);headers.set('Accept','application/json');
@@ -17,6 +17,7 @@ export const api={
  settings:(entity:string)=>request<EntitySettings>(`/entities/${entity}/settings`),
  saveSettings:(entity:string,data:Pick<EntitySettings,'interest_projection'|'forward_curve'>)=>request<EntitySettings>(`/entities/${entity}/settings`,{method:'PUT',body:JSON.stringify(data)}),
  assumptions:(entity:string)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions`),
+ productCatalogue:(entity:string)=>request<ProductCatalogueChoice[]>(`/entities/${entity}/product-catalogue`),
  addAssumption:(entity:string,data:Omit<LiquidityAssumption,'id'|'updated'>)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions`,{method:'POST',body:JSON.stringify(data)}),
  saveAssumption:(entity:string,id:number,data:Partial<LiquidityAssumption>)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions/${id}`,{method:'PATCH',body:JSON.stringify(data)}),
  deleteAssumption:(entity:string,id:number)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions/${id}`,{method:'DELETE'}),

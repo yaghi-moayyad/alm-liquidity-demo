@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem
 
 @admin.register(CalculationRun)
 class RunAdmin(admin.ModelAdmin):
@@ -36,3 +36,9 @@ class LiquidityAssumptionAdmin(admin.ModelAdmin):
     list_display = ['title','assumption_set','category','currency_scope','enabled','updated']
     list_filter = ['category','enabled','currency_scope']
     search_fields = ['title','product_group','product_type']
+
+@admin.register(ProductCatalogueItem)
+class ProductCatalogueItemAdmin(admin.ModelAdmin):
+    list_display = ['classification','product_group','product_type','general_ledger','is_temporary_gl','active']
+    list_filter = ['classification','is_temporary_gl','active']
+    search_fields = ['product_group','product_type','general_ledger']

@@ -7,8 +7,8 @@ from rest_framework.decorators import action,api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError,APIException
 from drf_spectacular.utils import extend_schema,OpenApiTypes
-from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption
-from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer
+from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem
+from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
 
@@ -68,8 +68,25 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
             serializer.save()
         return Response(EntitySettingsSerializer(config).data)
 
+    @extend_schema(methods=['GET'],responses=ProductCatalogueChoiceSerializer(many=True))
+    @action(detail=True,methods=['get'],url_path='product-catalogue')
+    def product_catalogue(self,request,slug=None):
+        # GL mappings remain protected in Django admin. The client needs only
+        # safe, controlled choices for the assumption editor.
+        entity=self.get_object()
+        items=ProductCatalogueItem.objects.filter(entity=entity,active=True)
+        return Response(ProductCatalogueChoiceSerializer(items,many=True).data)
+
     def _assumption_set(self, entity):
         return LiquidityAssumptionSet.objects.prefetch_related('rules').filter(entity=entity,status='active').first()
+
+    def _validate_catalogue_choice(self, entity, values, rule=None):
+        group=values.get('product_group',rule.product_group if rule else '')
+        product=values.get('product_type',rule.product_type if rule else '')
+        candidates=ProductCatalogueItem.objects.filter(entity=entity,active=True,product_group=group)
+        if not candidates.exists(): raise ValidationError({'product_group':'Choose a report group from the product catalogue.'})
+        if product not in ('ALL','') and not candidates.filter(product_type=product).exists():
+            raise ValidationError({'product_type':'Choose a product type from the selected report group.'})
 
     @extend_schema(methods=['GET'],responses=LiquidityAssumptionSetSerializer)
     @extend_schema(methods=['POST'],request=LiquidityAssumptionSerializer,responses=LiquidityAssumptionSetSerializer)
@@ -79,6 +96,7 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
         if not assumption_set: raise ValidationError('No active behavioural assumption set is configured for this entity.')
         if request.method=='POST':
             serializer=LiquidityAssumptionSerializer(data=request.data); serializer.is_valid(raise_exception=True)
+            self._validate_catalogue_choice(entity,serializer.validated_data)
             serializer.save(assumption_set=assumption_set)
             assumption_set.version += 1; assumption_set.save(update_fields=['version','updated'])
         return Response(LiquidityAssumptionSetSerializer(self._assumption_set(entity)).data)
@@ -91,7 +109,8 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
         if not rule: raise ValidationError({'rule_id':'Assumption was not found in this entity.'})
         if request.method=='DELETE': rule.delete()
         else:
-            serializer=LiquidityAssumptionSerializer(rule,data=request.data,partial=True); serializer.is_valid(raise_exception=True); serializer.save()
+            serializer=LiquidityAssumptionSerializer(rule,data=request.data,partial=True); serializer.is_valid(raise_exception=True)
+            self._validate_catalogue_choice(entity,serializer.validated_data,rule); serializer.save()
         assumption_set.version += 1; assumption_set.save(update_fields=['version','updated'])
         return Response(LiquidityAssumptionSetSerializer(self._assumption_set(entity)).data)
 

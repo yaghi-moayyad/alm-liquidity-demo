@@ -75,6 +75,27 @@ class LiquidityAssumption(models.Model):
     def __str__(self):
         return self.title
 
+
+class ProductCatalogueItem(models.Model):
+    """Governed product and GL mapping. GLs stay in administration, not end-user APIs."""
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='product_catalogue')
+    classification = models.CharField(max_length=32)  # Asset, Liability, OffBalanceSheet
+    product_group = models.CharField(max_length=96)
+    product_type = models.CharField(max_length=96)
+    general_ledger = models.TextField()
+    is_temporary_gl = models.BooleanField(default=False)
+    source = models.CharField(max_length=160, default='Jordan Product mapping workbook')
+    active = models.BooleanField(default=True)
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['classification', 'product_group', 'product_type']
+        constraints = [models.UniqueConstraint(fields=['entity', 'classification', 'product_group', 'product_type'], name='unique_entity_catalogue_item')]
+
+    def __str__(self):
+        return f'{self.product_group} · {self.product_type}'
+
 class PortfolioContract(models.Model):
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='portfolio_contracts')
     external_id = models.CharField(max_length=64)

@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from .engine import validate_config, MAX_CONTRACTS, DEFAULT_BUCKETS, PRECISION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumption, LiquidityAssumptionSet
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumption, LiquidityAssumptionSet, ProductCatalogueItem
 
 class RunInputSerializer(serializers.Serializer):
     entity = serializers.SlugField(max_length=64)
@@ -130,6 +130,22 @@ class LiquidityAssumptionSerializer(serializers.ModelSerializer):
         model=LiquidityAssumption
         fields=['id','category','title','product_group','product_type','currency_scope','maturity_breakdown','value','enabled','sort_order','updated']
         read_only_fields=['id','updated']
+    def validate(self,attrs):
+        category=attrs.get('category',self.instance.category if self.instance else None)
+        value=attrs.get('value',self.instance.value if self.instance else {})
+        if category=='deposit_runoff':
+            points=value.get('curve') if isinstance(value,dict) else None
+            if not isinstance(points,list) or not points:
+                raise serializers.ValidationError({'value':'Add at least one runoff curve point.'})
+            previous=-1; days_seen=set()
+            for point in points:
+                try: days=int(point['days']); cumulative=Decimal(str(point['cumulative']))
+                except (KeyError,TypeError,ValueError): raise serializers.ValidationError({'value':'Every curve point needs numeric days and cumulative percentage.'})
+                if days < 1 or days in days_seen: raise serializers.ValidationError({'value':'Curve days must be positive and unique.'})
+                if not Decimal('0') <= cumulative <= Decimal('1') or cumulative < previous:
+                    raise serializers.ValidationError({'value':'Cumulative runoff must increase from 0% to 100%.'})
+                days_seen.add(days); previous=cumulative
+        return attrs
 
 class LiquidityAssumptionSetSerializer(serializers.ModelSerializer):
     rules=LiquidityAssumptionSerializer(many=True,read_only=True)
@@ -137,6 +153,12 @@ class LiquidityAssumptionSetSerializer(serializers.ModelSerializer):
         model=LiquidityAssumptionSet
         fields=['id','name','version','effective_date','status','source','is_system','updated','rules']
         read_only_fields=['id','version','updated','is_system']
+
+class ProductCatalogueChoiceSerializer(serializers.ModelSerializer):
+    """The GL is intentionally excluded from the application-facing catalogue."""
+    class Meta:
+        model=ProductCatalogueItem
+        fields=['id','classification','product_group','product_type']
 
 class PortfolioInputSerializer(RunInputSerializer):
     expected_revision=serializers.IntegerField(min_value=1)
