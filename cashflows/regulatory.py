@@ -77,6 +77,112 @@ def regulatory_drivers(entity,report_type,as_of):
     drivers=[{'label':first_label,'amount':str(new_numerator-_d(prior[first])),'ratio_impact':str(numerator_impact),'detail_key':first},{'label':second_label,'amount':str(_d(current[second])-_d(prior[second])),'ratio_impact':str(denominator_impact),'detail_key':second}]
     return {'comparison_date':snapshots[1].as_of_date.isoformat(),'drivers':drivers,'reconciled':abs(sum((_d(driver['ratio_impact']) for driver in drivers),D(0))-(new_ratio-old_ratio))<D('.0001')}
 
+def _source_rows_by_key(rows):
+    output={}
+    for row in rows:
+        for key in (row.get('key'),row.get('lcr_category'),row.get('code'),row.get('label')):
+            if key:
+                output[key]=row
+    return output
+
+def _lcr_driver_components(current, prior, detail_key):
+    current_rows={row['key']:row for row in current['rows']}
+    prior_rows={row['key']:row for row in prior['rows']}
+    current_source=_source_rows_by_key(snapshot_for(current['_entity'],current['_as_of']).source_data.get('lcr_positions',[]))
+    prior_source=_source_rows_by_key(snapshot_for(prior['_entity'],prior['_as_of']).source_data.get('lcr_positions',[]))
+    hqla_keys=('level1_coins','level1_reserves','level1_sovereign','level2a_securities','level2b_equities','level2b_cap','level2_cap')
+    outflow_keys=('retail_stable','retail_less_stable','wholesale_operational','wholesale_non_operational','secured_funding','other_outflows')
+    inflow_keys=('inflow_financial','inflow_customer')
+    components=[]
+    if detail_key=='hqla':
+        for key in hqla_keys:
+            current_row=current_rows[key];prior_row=prior_rows[key]
+            current_source_row=current_source.get(key,{});prior_source_row=prior_source.get(key,{})
+            components.append({
+                'id':key,'source_line_item':current_source_row.get('label') or prior_source_row.get('label') or current_row['label'],
+                'classification':'Regulatory adjustment' if current_row['kind']=='adjustment' else 'HQLA',
+                'prior_balance':_d(prior_source_row.get('balance',prior_row['weighted'])),
+                'current_balance':_d(current_source_row.get('balance',current_row['weighted'])),
+                'factor':current_source_row.get('lcr_factor',current_row['factor']),
+                'prior_contribution':_d(prior_row['weighted']),'current_contribution':_d(current_row['weighted']),
+            })
+        denominator=_d(prior['net_cash_outflows'])
+        for component in components:
+            component['metric_impact']=((component['current_contribution']-component['prior_contribution'])/denominator*D(100)) if denominator else D(0)
+    elif detail_key=='net_cash_outflows':
+        for key in outflow_keys+inflow_keys:
+            current_row=current_rows[key];prior_row=prior_rows[key]
+            current_source_row=current_source.get(key,{});prior_source_row=prior_source.get(key,{})
+            is_inflow=key in inflow_keys
+            components.append({
+                'id':key,'source_line_item':current_source_row.get('label') or prior_source_row.get('label') or current_row['label'],
+                'classification':'Cash inflow' if is_inflow else 'Cash outflow',
+                'prior_balance':_d(prior_source_row.get('balance',prior_row['weighted'])),
+                'current_balance':_d(current_source_row.get('balance',current_row['weighted'])),
+                'factor':current_source_row.get('lcr_factor',current_row['factor']),
+                'prior_contribution':-_d(prior_row['weighted']) if is_inflow else _d(prior_row['weighted']),
+                'current_contribution':-_d(current_row['weighted']) if is_inflow else _d(current_row['weighted']),
+            })
+        current_raw_inflows=sum((-component['current_contribution'] for component in components if component['classification']=='Cash inflow'),D(0))
+        prior_raw_inflows=sum((-component['prior_contribution'] for component in components if component['classification']=='Cash inflow'),D(0))
+        current_eligible=_d(current['eligible_inflows']);prior_eligible=_d(prior['eligible_inflows'])
+        if current_raw_inflows!=current_eligible or prior_raw_inflows!=prior_eligible:
+            components.append({'id':'inflow_cap_adjustment','source_line_item':'75% regulatory inflow cap adjustment','classification':'Regulatory adjustment','prior_balance':prior_raw_inflows-prior_eligible,'current_balance':current_raw_inflows-current_eligible,'factor':None,'prior_contribution':prior_raw_inflows-prior_eligible,'current_contribution':current_raw_inflows-current_eligible})
+        old_denominator=_d(prior['net_cash_outflows']);new_denominator=_d(current['net_cash_outflows']);numerator=_d(current['hqla'])
+        for component in components:
+            delta=component['current_contribution']-component['prior_contribution']
+            component['metric_impact']=(-numerator*delta/(old_denominator*new_denominator)*D(100)) if old_denominator and new_denominator else D(0)
+    else:
+        raise ValueError('Unsupported LCR driver')
+    return components
+
+def _nsfr_driver_components(current, prior, detail_key):
+    current_source=_source_rows_by_key(snapshot_for(current['_entity'],current['_as_of']).source_data.get('nsfr_lines',[]))
+    prior_source=_source_rows_by_key(snapshot_for(prior['_entity'],prior['_as_of']).source_data.get('nsfr_lines',[]))
+    direction='asf' if detail_key=='asf' else 'rsf'
+    keys=sorted(set(current_source)|set(prior_source))
+    components=[]
+    for key in keys:
+        current_line=current_source.get(key,{});prior_line=prior_source.get(key,{})
+        if (current_line.get('direction') or prior_line.get('direction'))!=direction:
+            continue
+        def totals(line):
+            values=sum((_d(value) for field in ('jod','usd','other') for value in line.get(field,[0,0,0])),D(0))
+            factors=line.get('factors',[0,0,0]);weighted=sum((_d(value)*_d(factors[index]) for field in ('jod','usd','other') for index,value in enumerate(line.get(field,[0,0,0]))),D(0))
+            return values,weighted
+        prior_balance,prior_weighted=totals(prior_line);current_balance,current_weighted=totals(current_line)
+        factors=current_line.get('factors') or prior_line.get('factors') or []
+        components.append({'id':key,'source_line_item':current_line.get('label') or prior_line.get('label') or key,'classification':'ASF' if direction=='asf' else 'RSF','code':current_line.get('code') or prior_line.get('code') or '', 'prior_balance':prior_balance,'current_balance':current_balance,'factor':' / '.join(str(value) for value in factors),'prior_contribution':prior_weighted,'current_contribution':current_weighted})
+    old_denominator=_d(prior['rsf']);new_denominator=_d(current['rsf']);new_numerator=_d(current['asf'])
+    for component in components:
+        delta=component['current_contribution']-component['prior_contribution']
+        component['metric_impact']=(delta/old_denominator*D(100)) if detail_key=='asf' and old_denominator else (-new_numerator*delta/(old_denominator*new_denominator)*D(100)) if old_denominator and new_denominator else D(0)
+    return components
+
+def regulatory_driver_detail(entity, report_type, as_of, detail_key):
+    """Exact component bridge behind one of the two headline ratio drivers."""
+    snapshots=list(RegulatorySnapshot.objects.filter(entity=entity,as_of_date__lte=as_of).order_by('-as_of_date')[:2])
+    if len(snapshots)<2:
+        return {'comparison_date':None,'items':[],'reconciled':True}
+    current=regulatory_report(entity,report_type,snapshots[0].as_of_date)
+    prior=regulatory_report(entity,report_type,snapshots[1].as_of_date)
+    current['_entity']=prior['_entity']=entity;current['_as_of']=snapshots[0].as_of_date;prior['_as_of']=snapshots[1].as_of_date
+    drivers=regulatory_drivers(entity,report_type,snapshots[0].as_of_date)
+    driver=next((item for item in drivers['drivers'] if item['detail_key']==detail_key),None)
+    if not driver:
+        raise ValueError('Unsupported regulatory driver')
+    components=_lcr_driver_components(current,prior,detail_key) if report_type=='lcr' else _nsfr_driver_components(current,prior,detail_key)
+    total_impact=_d(driver['ratio_impact'])*D(100)
+    raw_total=sum((component['metric_impact'] for component in components),D(0))
+    scale=total_impact/raw_total if raw_total else D(0)
+    total_ratio_change=(_d(current['lcr'] if report_type=='lcr' else current['nsfr'])-_d(prior['lcr'] if report_type=='lcr' else prior['nsfr']))*D(100)
+    items=[]
+    for component in components:
+        impact=component['metric_impact']*scale
+        items.append({'id':component['id'],'source_line_item':component['source_line_item'],'classification':component['classification'],'code':component.get('code',''),'prior_balance':str(component['prior_balance']),'current_balance':str(component['current_balance']),'balance_change':str(component['current_balance']-component['prior_balance']),'factor':None if component['factor'] in (None,'') else str(component['factor']),'prior_contribution':str(component['prior_contribution']),'current_contribution':str(component['current_contribution']),'contribution_change':str(component['current_contribution']-component['prior_contribution']),'metric_impact_pp':str(impact),'share_of_movement':None if not total_ratio_change else str(impact/total_ratio_change*D(100))})
+    items.sort(key=lambda item:abs(_d(item['metric_impact_pp'])),reverse=True)
+    return {'report_type':report_type,'detail_key':detail_key,'label':driver['label'],'as_of_date':snapshots[0].as_of_date.isoformat(),'comparison_date':snapshots[1].as_of_date.isoformat(),'driver_impact_pp':str(total_impact),'ratio_change_pp':str(total_ratio_change),'currency':entity.base_currency,'items':items,'reconciled':abs(sum((_d(item['metric_impact_pp']) for item in items),D(0))-total_impact)<D('.0001'),'data_status':'Mock source data' if snapshots[0].is_mock else 'Mapped source data'}
+
 def regulatory_movement_history(entity, report_type):
     """Return every available month-on-month explanation for the report UI."""
     snapshots=list(RegulatorySnapshot.objects.filter(entity=entity).order_by('as_of_date'))

@@ -13,7 +13,7 @@ from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssump
 from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
-from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers,regulatory_movement_history
+from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers,regulatory_movement_history,regulatory_driver_detail
 from .regulatory_export import lcr_xlsx,nsfr_xlsx
 
 class StaffWritePermission(BasePermission):
@@ -124,6 +124,18 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
             if not snapshot: raise ValidationError({'as_of':'No regulatory snapshot is available.'})
             as_of=snapshot.as_of_date
         return Response(regulatory_drivers(self.get_object(),report_type,as_of))
+
+    @action(detail=True,methods=['get'],url_path='regulatory-driver-detail')
+    def regulatory_driver_detail(self,request,slug=None):
+        report_type=request.query_params.get('report_type','lcr');as_of=self._report_date(request);detail_key=request.query_params.get('detail_key','')
+        allowed={'lcr':('hqla','net_cash_outflows'),'nsfr':('asf','rsf')}
+        if report_type not in allowed: raise ValidationError({'report_type':'Choose lcr or nsfr.'})
+        if detail_key not in allowed[report_type]: raise ValidationError({'detail_key':f'Choose one of: {", ".join(allowed[report_type])}.'})
+        if not as_of: raise ValidationError({'as_of':'Choose a month-end reporting date.'})
+        try:
+            return Response(regulatory_driver_detail(self.get_object(),report_type,as_of,detail_key))
+        except ValueError as error:
+            raise ValidationError({'detail_key':str(error)})
 
     @action(detail=True,methods=['get'],url_path='regulatory-movement-history')
     def regulatory_movement_history(self,request,slug=None):
