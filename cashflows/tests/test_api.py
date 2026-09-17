@@ -37,6 +37,8 @@ class DjangoApiTests(TestCase):
         self.assertEqual(run.result_summary['accepted_count'],11)
         self.assertGreater(run.cashflows.count(),0)
         self.assertNotIn('cashflows',run.result_summary)
+        self.assertNotIn('contracts',run.result_summary)
+        self.assertEqual(run.contract_index.count(),11)
         self.assertIsNotNone(run.finished)
     def test_authentication_required(self):
         client=APIClient()
@@ -90,6 +92,14 @@ class DjangoApiTests(TestCase):
         self.assertTrue(all(f['currency']=='USD' for f in response.data['cashflows']))
         self.assertEqual(len(response.data['cashflows'][0]['principal'].split('.')[1]),2)
         self.assertEqual(self.client.get(f'/api/v1/runs/{run.pk}/cashflows',{'limit':1001}).status_code,400)
+
+    def test_contract_search_is_indexed_and_prefix_based(self):
+        run=self.completed()
+        response=self.client.get(f'/api/v1/runs/{run.pk}/contracts',{'q':'LN'})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.data['query'],'LN')
+        self.assertEqual([row['contract_id'] for row in response.data['contracts']],['LN-1001','LN-1002','LN-1003'])
+        self.assertEqual(self.client.get(f'/api/v1/runs/{run.pk}/contracts',{'q':'L'}).status_code,400)
     def test_csv_and_snapshot(self):
         run=self.completed()
         for suffix in ('summary.csv','cashflows.csv'):

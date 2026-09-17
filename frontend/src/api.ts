@@ -1,4 +1,4 @@
-import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings} from './types';
+import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings,RunContract} from './types';
 export function csrf(){return decodeURIComponent(document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=')[1]||'');}
 export async function request<T>(path:string,options:RequestInit={}):Promise<T>{
  const headers=new Headers(options.headers);headers.set('Accept','application/json');
@@ -22,6 +22,7 @@ export const api={
  run:(id:string)=>request<Run>(`/runs/${id}`),
  submit:(input:Input,key:string)=>request<{id:string;status:string}>('/runs',{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify(input)}),
  flows:(id:string,contract:string,offset=0)=>request<{total:number;cashflows:Flow[]}>(`/runs/${id}/cashflows?contract_id=${encodeURIComponent(contract)}&limit=100&offset=${offset}`),
+ contracts:(id:string,q:string)=>request<{query:string;contracts:RunContract[]}>(`/runs/${id}/contracts?q=${encodeURIComponent(q)}&limit=25`),
  input:(id:string)=>request<Input>(`/runs/${id}/input`),
 };
 export const money=(value:string|number,currency='JOD')=>Number(value).toLocaleString('en-US',{minimumFractionDigits:currency==='JOD'?3:2,maximumFractionDigits:currency==='JOD'?3:2});

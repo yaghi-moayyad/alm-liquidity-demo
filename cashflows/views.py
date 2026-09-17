@@ -14,7 +14,8 @@ from .engine import VERSION
 from .models import CalculationRun, Entity, EntityConfiguration, PortfolioContract
 from .sample import sample
 from .serializers import (RunInputSerializer,RunListSerializer,RunDetailSerializer,RunAcceptedSerializer,
-                          CashFlowSerializer,FlowPageSerializer,FlowQuerySerializer,RunPageSerializer,HealthSerializer)
+                          CashFlowSerializer,FlowPageSerializer,FlowQuerySerializer,RunPageSerializer,HealthSerializer,
+                          ContractSearchQuerySerializer,RunContractSerializer,ContractSearchResponseSerializer)
 from .services import submit_run
 
 
@@ -115,6 +116,24 @@ class RunViewSet(viewsets.GenericViewSet):
         total=queryset.count()
         offset,limit=params['offset'],params['limit']
         return Response({'total':total,'offset':offset,'limit':limit,'cashflows':CashFlowSerializer(queryset[offset:offset+limit],many=True).data})
+
+    @extend_schema(parameters=[ContractSearchQuerySerializer],responses=ContractSearchResponseSerializer)
+    @action(detail=True,methods=['get'])
+    def contracts(self,request,pk=None):
+        """Prefix search only: avoids loading a whole bank portfolio into a browser."""
+        run=self.ready_run()
+        filters=ContractSearchQuerySerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        query=filters.validated_data['q'].strip()
+        limit=filters.validated_data['limit']
+        indexed=run.contract_index.filter(contract_id_key__startswith=query.upper())[:limit]
+        if indexed:
+            return Response({'query':query,'contracts':RunContractSerializer(indexed,many=True).data})
+        # Runs created before the contract index was introduced are small legacy
+        # prototypes. New bank-scale runs always use the indexed path above.
+        legacy=(run.result_summary or {}).get('contracts',[])
+        matches=[item for item in legacy if item.get('contract_id','').upper().startswith(query.upper())][:limit]
+        return Response({'query':query,'contracts':matches})
 
     @extend_schema(responses={(200,'text/csv'):OpenApiTypes.BINARY})
     @action(detail=True,methods=['get'],url_path=r'cashflows\.csv')

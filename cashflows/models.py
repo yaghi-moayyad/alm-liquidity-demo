@@ -70,6 +70,20 @@ class CalculationRun(models.Model):
     def __str__(self):
         return f'{self.id} · {self.as_of_date} · {self.status}'
 
+class RunContract(models.Model):
+    """Small searchable index of the contracts accepted into a saved run."""
+    run = models.ForeignKey(CalculationRun, on_delete=models.CASCADE, related_name='contract_index')
+    contract_id = models.CharField(max_length=64)
+    contract_id_key = models.CharField(max_length=64)
+    product = models.CharField(max_length=32)
+    currency = models.CharField(max_length=3)
+    direction = models.CharField(max_length=8)
+
+    class Meta:
+        ordering = ['contract_id']
+        constraints = [models.UniqueConstraint(fields=['run', 'contract_id'], name='unique_run_contract')]
+        indexes = [models.Index(fields=['run', 'contract_id_key'], name='run_contract_search_idx')]
+
 class CashFlow(models.Model):
     run = models.ForeignKey(CalculationRun, on_delete=models.CASCADE, related_name='cashflows')
     sequence = models.PositiveIntegerField()

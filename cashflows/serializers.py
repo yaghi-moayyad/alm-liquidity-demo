@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from .engine import validate_config, MAX_CONTRACTS, DEFAULT_BUCKETS, PRECISION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract
 
 class RunInputSerializer(serializers.Serializer):
     entity = serializers.SlugField(max_length=64)
@@ -78,6 +78,19 @@ class FlowQuerySerializer(serializers.Serializer):
     contract_id=serializers.CharField(required=False,max_length=64)
     currency=serializers.ChoiceField(required=False,choices=list(PRECISION))
     product=serializers.CharField(required=False,max_length=32)
+
+class ContractSearchQuerySerializer(serializers.Serializer):
+    q=serializers.CharField(min_length=2,max_length=64,trim_whitespace=True)
+    limit=serializers.IntegerField(default=25,min_value=1,max_value=50)
+
+class RunContractSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=RunContract
+        fields=['contract_id','product','currency','direction']
+
+class ContractSearchResponseSerializer(serializers.Serializer):
+    query=serializers.CharField()
+    contracts=RunContractSerializer(many=True)
 
 
 class EntitySerializer(serializers.ModelSerializer):

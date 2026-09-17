@@ -7,7 +7,7 @@ from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 from .engine import calculate, VERSION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract
 
 logger=logging.getLogger(__name__)
 
@@ -77,6 +77,7 @@ def execute_run(run_id):
             CalculationRun.objects.filter(pk=run_id,status='running').update(progress=int(100*done/total),heartbeat=timezone.now())
         result=calculate(run.input_payload,progress)
         flows=result.pop('cashflows')
+        contracts=result.pop('contracts')
         with transaction.atomic():
             # Mark-interrupted recovery is only used once the old worker has stopped.
             current=CalculationRun.objects.select_for_update().get(pk=run_id)
@@ -84,6 +85,10 @@ def execute_run(run_id):
             for start in range(0,len(flows),1000):
                 CashFlow.objects.bulk_create([CashFlow(run_id=run_id,sequence=i,**flow)
                     for i,flow in enumerate(flows[start:start+1000],start)],batch_size=1000)
+            for start in range(0,len(contracts),1000):
+                RunContract.objects.bulk_create([RunContract(run_id=run_id, contract_id=item['contract_id'],
+                    contract_id_key=item['contract_id'].upper(), product=item['product'], currency=item['currency'],
+                    direction=item['direction']) for item in contracts[start:start+1000]], batch_size=1000)
             current.result_summary=result
             current.status=result['status']
             current.progress=100
