@@ -1,4 +1,4 @@
-import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings,RunContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueChoice,NcrReport} from './types';
+import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings,RunContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueChoice,NcrReport,NsfrReport,RegulatoryPoint,RegulatoryDrivers} from './types';
 export function csrf(){return decodeURIComponent(document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=')[1]||'');}
 export async function request<T>(path:string,options:RequestInit={}):Promise<T>{
  const headers=new Headers(options.headers);headers.set('Accept','application/json');
@@ -19,7 +19,12 @@ export const api={
  assumptions:(entity:string)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions`),
  productCatalogue:(entity:string)=>request<ProductCatalogueChoice[]>(`/entities/${entity}/product-catalogue`),
  saveProductTreatment:(entity:string,id:number,data:Pick<ProductCatalogueChoice,'cash_flow_treatment'|'treatment_note'>)=>request<ProductCatalogueChoice>(`/entities/${entity}/product-catalogue/${id}`,{method:'PATCH',body:JSON.stringify(data)}),
- ncrReport:(entity:string)=>request<NcrReport>(`/entities/${entity}/ncr-report`),
+  ncrReport:(entity:string)=>request<NcrReport>(`/entities/${entity}/ncr-report`),
+  lcrReport:(entity:string,asOf?:string)=>request<NcrReport>(`/entities/${entity}/lcr-report${asOf?`?as_of=${asOf}`:''}`),
+  nsfrReport:(entity:string,asOf?:string)=>request<NsfrReport>(`/entities/${entity}/nsfr-report${asOf?`?as_of=${asOf}`:''}`),
+  regulatorySeries:(entity:string,reportType:'lcr'|'nsfr')=>request<{report_type:string;points:RegulatoryPoint[]}>(`/entities/${entity}/regulatory-series?report_type=${reportType}`),
+  regulatoryDrivers:(entity:string,reportType:'lcr'|'nsfr',asOf:string)=>request<RegulatoryDrivers>(`/entities/${entity}/regulatory-drivers?report_type=${reportType}&as_of=${asOf}`),
+  regulatoryExportUrl:(entity:string,reportType:'lcr'|'nsfr',asOf:string)=>`/api/v1/entities/${entity}/regulatory-export?report_type=${reportType}&as_of=${asOf}`,
  addAssumption:(entity:string,data:Omit<LiquidityAssumption,'id'|'updated'>)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions`,{method:'POST',body:JSON.stringify(data)}),
  saveAssumption:(entity:string,id:number,data:Partial<LiquidityAssumption>)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions/${id}`,{method:'PATCH',body:JSON.stringify(data)}),
  deleteAssumption:(entity:string,id:number)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions/${id}`,{method:'DELETE'}),

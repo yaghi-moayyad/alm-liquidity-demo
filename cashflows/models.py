@@ -124,6 +124,20 @@ class RegulatorySourcePosition(models.Model):
         ordering = ['lcr_direction', 'lcr_category', 'external_id']
         constraints = [models.UniqueConstraint(fields=['entity', 'external_id'], name='unique_entity_regulatory_position')]
 
+
+class RegulatorySnapshot(models.Model):
+    """Immutable month-end mapped source data and calculated regulatory results."""
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='regulatory_snapshots')
+    as_of_date = models.DateField()
+    source = models.CharField(max_length=160, default='Mapped regulatory source positions')
+    is_mock = models.BooleanField(default=False)
+    source_data = models.JSONField(default=dict)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-as_of_date']
+        constraints = [models.UniqueConstraint(fields=['entity', 'as_of_date'], name='unique_entity_regulatory_snapshot')]
+
 class PortfolioContract(models.Model):
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='portfolio_contracts')
     external_id = models.CharField(max_length=64)

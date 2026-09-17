@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem, RegulatorySourcePosition
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem, RegulatorySourcePosition, RegulatorySnapshot
 
 @admin.register(CalculationRun)
 class RunAdmin(admin.ModelAdmin):
@@ -48,3 +48,10 @@ class RegulatorySourcePositionAdmin(admin.ModelAdmin):
     list_display = ['external_id','entity','lcr_category','lcr_direction','currency','balance','lcr_factor','hqla_level']
     list_filter = ['entity','lcr_direction','hqla_level','currency']
     search_fields = ['external_id','gl_code','product_group','product_type']
+
+@admin.register(RegulatorySnapshot)
+class RegulatorySnapshotAdmin(admin.ModelAdmin):
+    list_display = ['entity','as_of_date','source','is_mock','created']
+    list_filter = ['entity','is_mock']
+    search_fields = ['entity__slug','source']
+    readonly_fields = ['created']

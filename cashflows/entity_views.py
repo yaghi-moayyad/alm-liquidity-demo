@@ -1,17 +1,20 @@
 from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.http import HttpResponse
 from rest_framework import mixins,viewsets
 from rest_framework.permissions import BasePermission,SAFE_METHODS
 from rest_framework.decorators import action,api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError,APIException
 from drf_spectacular.utils import extend_schema,OpenApiTypes
-from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem
+from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem,RegulatorySnapshot
 from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
-from .regulatory import ncr_report
+from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers
+from .regulatory_export import lcr_xlsx,nsfr_xlsx
 
 class StaffWritePermission(BasePermission):
     def has_permission(self,request,view):
@@ -90,6 +93,48 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
     @action(detail=True,methods=['get'],url_path='ncr-report')
     def ncr_report(self,request,slug=None):
         return Response(ncr_report(self.get_object()))
+
+    def _report_date(self, request):
+        raw=request.query_params.get('as_of')
+        if not raw: return None
+        value=parse_date(raw)
+        if not value: raise ValidationError({'as_of':'Use a date in YYYY-MM-DD format.'})
+        return value
+
+    @action(detail=True,methods=['get'],url_path='lcr-report')
+    def lcr_report(self,request,slug=None):
+        return Response(regulatory_report(self.get_object(),'lcr',self._report_date(request)))
+
+    @action(detail=True,methods=['get'],url_path='nsfr-report')
+    def nsfr_report(self,request,slug=None):
+        return Response(regulatory_report(self.get_object(),'nsfr',self._report_date(request)))
+
+    @action(detail=True,methods=['get'],url_path='regulatory-series')
+    def regulatory_series(self,request,slug=None):
+        report_type=request.query_params.get('report_type','lcr')
+        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
+        return Response({'report_type':report_type,'points':regulatory_series(self.get_object(),report_type)})
+
+    @action(detail=True,methods=['get'],url_path='regulatory-drivers')
+    def regulatory_drivers(self,request,slug=None):
+        report_type=request.query_params.get('report_type','lcr');as_of=self._report_date(request)
+        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
+        if not as_of:
+            snapshot=RegulatorySnapshot.objects.filter(entity=self.get_object()).first()
+            if not snapshot: raise ValidationError({'as_of':'No regulatory snapshot is available.'})
+            as_of=snapshot.as_of_date
+        return Response(regulatory_drivers(self.get_object(),report_type,as_of))
+
+    @action(detail=True,methods=['get'],url_path='regulatory-export')
+    def regulatory_export(self,request,slug=None):
+        report_type=request.query_params.get('report_type','lcr');entity=self.get_object();as_of=self._report_date(request)
+        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
+        snapshot=RegulatorySnapshot.objects.filter(entity=entity,as_of_date=as_of).first() if as_of else RegulatorySnapshot.objects.filter(entity=entity).first()
+        if not snapshot: raise ValidationError('No regulatory snapshot is available for export.')
+        content=lcr_xlsx(regulatory_report(entity,'lcr',snapshot.as_of_date),snapshot.source_data.get('lcr_positions',[])) if report_type=='lcr' else nsfr_xlsx(snapshot.source_data.get('nsfr_lines',[]))
+        response=HttpResponse(content,content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition']=f'attachment; filename="{entity.slug}_{report_type}_{snapshot.as_of_date}.xlsx"'
+        return response
 
     def _assumption_set(self, entity):
         return LiquidityAssumptionSet.objects.prefetch_related('rules').filter(entity=entity,status='active').first()
