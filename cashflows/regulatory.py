@@ -28,7 +28,7 @@ def lcr_report_from_positions(positions, entity, as_of_date=None, source_count=N
     rows=[]
     for section,key,label,kind in LCR_LINE_SPEC:
         value=values[key];rows.append({'section':section,'key':key,'label':label,'kind':kind,'factor':None if value['factor'] is None else str(value['factor']),'exposure':str(value['exposure']),'weighted':str(value['weighted'])})
-    return {'entity':entity.slug,'entity_name':entity.name,'currency':entity.base_currency,'as_of_date':as_of_date.isoformat() if as_of_date else None,'source_position_count':source_count if source_count is not None else len(positions),'rows':rows,'lcr':str(values['lcr']['weighted']),'hqla':str(values['total_hqla']['weighted']),'net_cash_outflows':str(nco),'total_outflows':str(values['total_outflows']['weighted']),'eligible_inflows':str(values['eligible_inflows']['weighted']),'basis':basis or 'Deterministic LCR calculation from mapped source positions.'}
+    return {'entity':entity.slug,'entity_name':entity.name,'currency':entity.base_currency,'as_of_date':as_of_date.isoformat() if as_of_date else None,'source_position_count':source_count if source_count is not None else len(positions),'rows':rows,'lcr':str(values['lcr']['weighted']),'hqla':str(values['total_hqla']['weighted']),'net_cash_outflows':str(nco),'total_outflows':str(values['total_outflows']['weighted']),'total_inflows':str(values['total_inflows']['weighted']),'eligible_inflows':str(values['eligible_inflows']['weighted']),'basis':basis or 'Deterministic LCR calculation from mapped source positions.'}
 
 def ncr_report(entity):
     positions=RegulatorySourcePosition.objects.filter(entity=entity,active=True)
