@@ -60,7 +60,14 @@ def bucket_code(days):
             return code
     return 'gt_5y'
 
-def _zeroes(): return {'principal': [D(0)] * len(BANK_BUCKETS), 'interest': [D(0)] * len(BANK_BUCKETS)}
+def _zeroes():
+    return {
+        'principal': [D(0)] * len(BANK_BUCKETS),
+        'interest': [D(0)] * len(BANK_BUCKETS),
+        # The position outstanding at the reporting date.  This deliberately
+        # excludes interest, even when the ladder is displayed in total mode.
+        'balance': D(0),
+    }
 def _add(left, right): return [a + b for a, b in zip(left, right)]
 def _minus(left, right): return [a - b for a, b in zip(left, right)]
 
@@ -75,11 +82,13 @@ def build_bank_ladder(flows, undated, currency, precision):
         index = bucket_index[bucket_code(flow['days_from_asof'])]
         data[key]['principal'][index] += D(flow['principal'])
         data[key]['interest'][index] += D(flow['interest'])
+        data[key]['balance'] += D(flow['principal'])
     for item in undated:
         if item['currency'] != currency: continue
         key = PRODUCT_LINES.get((item.get('direction', 'outflow'), item.get('product', 'demand_deposit')))
         if key:
             data[key]['principal'][0] += D(item['balance'])
+            data[key]['balance'] += D(item['balance'])
 
     def sum_rows(keys, field):
         return [sum((data[key][field][i] for key in keys), D(0)) for i in range(len(BANK_BUCKETS))]
@@ -99,10 +108,33 @@ def build_bank_ladder(flows, undated, currency, precision):
         data['cumulative_contractual_gap'][field] = cumulatives
         data['cumulative_gap_including_capacity'][field] = includeds
 
+    def sum_balances(keys):
+        return sum((data[key]['balance'] for key in keys), D(0))
+
+    data['total_inflows']['balance'] = sum_balances(inflow_keys)
+    data['total_outflows']['balance'] = sum_balances(outflow_keys)
+    data['total_off_balance_sheet']['balance'] = sum_balances(obs_keys)
+    data['total_counterbalancing_capacity']['balance'] = sum_balances(
+        ['cash_central_bank', 'marketable_securities', 'government_capacity']
+    )
+    data['contractual_gap']['balance'] = (
+        data['total_inflows']['balance'] - data['total_outflows']['balance']
+        - data['total_off_balance_sheet']['balance']
+    )
+    data['contractual_gap_including_capacity']['balance'] = (
+        data['contractual_gap']['balance'] + data['total_counterbalancing_capacity']['balance']
+    )
+    # The balance column is an as-of-date position, so a cumulative balance is
+    # the cumulative contractual position across the report sections, not an
+    # interest-bearing future value.
+    data['cumulative_contractual_gap']['balance'] = data['contractual_gap']['balance']
+    data['cumulative_gap_including_capacity']['balance'] = data['contractual_gap_including_capacity']['balance']
+
     rows=[]
     for section,key,label,kind in ROW_SPEC:
         principal=data[key]['principal']; interest=data[key]['interest']
         rows.append({'section':section,'key':key,'label':label,'kind':kind,
+            'balance':str(data[key]['balance'].quantize(precision)),
             'principal':[str(v.quantize(precision)) for v in principal],
             'interest':[str(v.quantize(precision)) for v in interest],
             'total':[str((p+i).quantize(precision)) for p,i in zip(principal,interest)]})

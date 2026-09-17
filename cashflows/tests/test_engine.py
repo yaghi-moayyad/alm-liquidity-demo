@@ -71,6 +71,18 @@ class EngineTests(unittest.TestCase):
             net=sum((D(f['total'])*(1 if f['direction']=='inflow' else -1) for f in r['cashflows'] if f['currency']==cur),D(0))
             self.assertEqual(D(rows[-1]['cumulative_gap']),net)
 
+    def test_bank_ladder_asof_balance_is_principal_only(self):
+        r = calculate(sample())
+        ladder = r['bank_ladder']['JOD']
+        rows = {row['key']: row for row in ladder['rows']}
+        retail_time = rows['retail_time_out']
+        self.assertEqual(D(retail_time['balance']), sum(D(v) for v in retail_time['principal']))
+        self.assertNotEqual(D(retail_time['balance']), sum(D(v) for v in retail_time['total']))
+        self.assertEqual(
+            D(rows['total_outflows']['balance']),
+            sum(D(rows[key]['balance']) for key in ('repo', 'retail_call_out', 'retail_time_out', 'intergroup_call_out', 'intergroup_time_out', 'other_bank_call_out', 'other_bank_time_out', 'corporate_call_out', 'corporate_time_out', 'government', 'borrowed_funds', 'other_liabilities_illiquid')),
+        )
+
     def test_duplicates_excluded_entirely(self):
         p=sample();p['contracts']=[p['contracts'][0],p['contracts'][0]]
         r=calculate(p)
