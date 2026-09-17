@@ -106,6 +106,8 @@ export default function LcrStress() {
   const [selected, setSelected] = useState<StressScenario | null>(null);
   const [run, setRun] = useState<StressRun | null>(null);
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState("");
   const settings = useQuery({
     queryKey: ["lcr-stress-config", entity?.slug],
     queryFn: () => api.lcrStressConfig(entity!.slug),
@@ -146,11 +148,26 @@ export default function LcrStress() {
     }
   };
   const execute = async () => {
-    if (!entity || !asOf) return;
-    await save();
-    const created = await api.createLcrStressRun(entity.slug, asOf);
-    setRun(created);
-    history.refetch();
+    if (!entity || !asOf) {
+      setRunError("No LCR source snapshot is available for this entity.");
+      return;
+    }
+    setRunError("");
+    setRunning(true);
+    try {
+      await save();
+      const created = await api.createLcrStressRun(entity.slug, asOf);
+      setRun(created);
+      await history.refetch();
+    } catch (error) {
+      setRunError(
+        error instanceof Error
+          ? error.message
+          : "The stress test could not be completed.",
+      );
+    } finally {
+      setRunning(false);
+    }
   };
   const updateScenario = (next: StressScenario) =>
     setConfig((current) =>
@@ -208,16 +225,18 @@ export default function LcrStress() {
             </Button>
             <Button
               variant="contained"
-              disabled={!config || saving}
+              disabled={!config || saving || running}
               startIcon={<PlayArrowRounded />}
               onClick={execute}
             >
-              Run stress test
+              {running ? "Running stress test…" : "Run stress test"}
             </Button>
           </Stack>
         }
       />
-      <ErrorMessage error={settings.error || series.error || history.error} />
+      <ErrorMessage
+        error={settings.error || series.error || history.error || runError}
+      />
       <Stack direction="row" gap={1} mb={3} flexWrap="wrap">
         <Chip label={`Source date · ${dateLabel(asOf)}`} size="small" />
         <Chip label="LCR limit · 100%" size="small" variant="outlined" />

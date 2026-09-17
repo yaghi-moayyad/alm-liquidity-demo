@@ -43,21 +43,29 @@ export async function request<T>(
     ...options,
     headers,
   });
-  const data = await response.json();
+  const contentType = response.headers.get("content-type") || "";
+  const body = await response.text();
+  const raw: unknown =
+    body && contentType.includes("application/json") ? JSON.parse(body) : {};
+  const data = raw as T;
   if (!response.ok) {
+    const errorPayload =
+      raw && typeof raw === "object"
+        ? (raw as { error?: string; details?: Record<string, unknown> })
+        : {};
     if (response.status === 401 || response.status === 403) {
-      if (String(data.error).includes("credentials"))
+      if (String(errorPayload.error).includes("credentials"))
         window.location.href = "/accounts/login/?next=/";
     }
     throw new Error(
-      data.details
-        ? Object.entries(data.details)
+      errorPayload.details
+        ? Object.entries(errorPayload.details)
             .map(
               ([k, v]) =>
                 `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`,
             )
             .join(" · ")
-        : data.error || "Request failed",
+        : errorPayload.error || `Request failed (${response.status})`,
     );
   }
   return data;
