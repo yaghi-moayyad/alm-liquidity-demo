@@ -1,4 +1,4 @@
-import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings,RunContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueChoice,NcrReport,NsfrReport,RegulatoryPoint,RegulatoryDrivers} from './types';
+import type {Entity,Portfolio,Input,Run,Flow,Validation,Session,EntitySettings,RunContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueChoice,NcrReport,NsfrReport,RegulatoryPoint,RegulatoryDrivers,RegulatoryMovement} from './types';
 export function csrf(){return decodeURIComponent(document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.split('=')[1]||'');}
 export async function request<T>(path:string,options:RequestInit={}):Promise<T>{
  const headers=new Headers(options.headers);headers.set('Accept','application/json');
@@ -24,6 +24,7 @@ export const api={
   nsfrReport:(entity:string,asOf?:string)=>request<NsfrReport>(`/entities/${entity}/nsfr-report${asOf?`?as_of=${asOf}`:''}`),
   regulatorySeries:(entity:string,reportType:'lcr'|'nsfr')=>request<{report_type:string;points:RegulatoryPoint[]}>(`/entities/${entity}/regulatory-series?report_type=${reportType}`),
   regulatoryDrivers:(entity:string,reportType:'lcr'|'nsfr',asOf:string)=>request<RegulatoryDrivers>(`/entities/${entity}/regulatory-drivers?report_type=${reportType}&as_of=${asOf}`),
+  regulatoryMovementHistory:(entity:string,reportType:'lcr'|'nsfr')=>request<{report_type:string;movements:RegulatoryMovement[]}>(`/entities/${entity}/regulatory-movement-history?report_type=${reportType}`),
   regulatoryExportUrl:(entity:string,reportType:'lcr'|'nsfr',asOf:string)=>`/api/v1/entities/${entity}/regulatory-export?report_type=${reportType}&as_of=${asOf}`,
  addAssumption:(entity:string,data:Omit<LiquidityAssumption,'id'|'updated'>)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions`,{method:'POST',body:JSON.stringify(data)}),
  saveAssumption:(entity:string,id:number,data:Partial<LiquidityAssumption>)=>request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions/${id}`,{method:'PATCH',body:JSON.stringify(data)}),

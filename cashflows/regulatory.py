@@ -76,3 +76,26 @@ def regulatory_drivers(entity,report_type,as_of):
     new_denominator=_d(current[second]);numerator_impact=(new_numerator-_d(prior[first]))/old_denominator if old_denominator else D(0);denominator_impact=new_numerator/new_denominator-new_numerator/old_denominator if old_denominator and new_denominator else D(0)
     drivers=[{'label':first_label,'amount':str(new_numerator-_d(prior[first])),'ratio_impact':str(numerator_impact),'detail_key':first},{'label':second_label,'amount':str(_d(current[second])-_d(prior[second])),'ratio_impact':str(denominator_impact),'detail_key':second}]
     return {'comparison_date':snapshots[1].as_of_date.isoformat(),'drivers':drivers,'reconciled':abs(sum((_d(driver['ratio_impact']) for driver in drivers),D(0))-(new_ratio-old_ratio))<D('.0001')}
+
+def regulatory_movement_history(entity, report_type):
+    """Return every available month-on-month explanation for the report UI."""
+    snapshots=list(RegulatorySnapshot.objects.filter(entity=entity).order_by('as_of_date'))
+    movements=[]
+    for index, snapshot in enumerate(snapshots):
+        if index == 0:
+            continue
+        report=regulatory_report(entity,report_type,snapshot.as_of_date)
+        prior_report=regulatory_report(entity,report_type,snapshots[index-1].as_of_date)
+        ratio_key='lcr' if report_type=='lcr' else 'nsfr'
+        drivers=regulatory_drivers(entity,report_type,snapshot.as_of_date)
+        ranked=sorted(drivers['drivers'],key=lambda driver:abs(_d(driver['ratio_impact'])),reverse=True)
+        movements.append({
+            'as_of_date':snapshot.as_of_date.isoformat(),
+            'comparison_date':snapshots[index-1].as_of_date.isoformat(),
+            'ratio':report[ratio_key],
+            'delta_pp':str((_d(report[ratio_key])-_d(prior_report[ratio_key]))*D(100)),
+            'primary_driver':ranked[0] if ranked else None,
+            'drivers':drivers['drivers'],
+            'reconciled':drivers['reconciled'],
+        })
+    return movements

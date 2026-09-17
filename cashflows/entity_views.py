@@ -13,7 +13,7 @@ from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssump
 from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
-from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers
+from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers,regulatory_movement_history
 from .regulatory_export import lcr_xlsx,nsfr_xlsx
 
 class StaffWritePermission(BasePermission):
@@ -124,6 +124,12 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
             if not snapshot: raise ValidationError({'as_of':'No regulatory snapshot is available.'})
             as_of=snapshot.as_of_date
         return Response(regulatory_drivers(self.get_object(),report_type,as_of))
+
+    @action(detail=True,methods=['get'],url_path='regulatory-movement-history')
+    def regulatory_movement_history(self,request,slug=None):
+        report_type=request.query_params.get('report_type','lcr')
+        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
+        return Response({'report_type':report_type,'movements':regulatory_movement_history(self.get_object(),report_type)})
 
     @action(detail=True,methods=['get'],url_path='regulatory-export')
     def regulatory_export(self,request,slug=None):

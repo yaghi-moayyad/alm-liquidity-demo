@@ -23,5 +23,6 @@ export type NsfrRow={section:'asf'|'rsf'|'result';code:string;label:string;jod:s
 export type NsfrReport={entity:string;entity_name:string;currency:string;as_of_date:string|null;rows:NsfrRow[];asf:string;rsf:string;nsfr:string;basis:string};
 export type RegulatoryPoint={as_of_date:string;ratio:string;primary:string;secondary:string};
 export type RegulatoryDrivers={comparison_date:string|null;drivers:{label:string;amount:string;ratio_impact:string;detail_key:string}[];reconciled:boolean};
+export type RegulatoryMovement={as_of_date:string;comparison_date:string;ratio:string;delta_pp:string;primary_driver:RegulatoryDrivers['drivers'][number]|null;drivers:RegulatoryDrivers['drivers'];reconciled:boolean};
 export type Run={id:string;created:string;status:string;progress:number;error:string;as_of_date:string;entity:string;entity_name:string;is_mock:boolean;engine_version:string;result?:Result|null;input_hash?:string;started?:string;finished?:string};
 export type Session={username:string;is_staff:boolean};
