@@ -1,3 +1,4 @@
+from copy import deepcopy
 from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
@@ -9,12 +10,13 @@ from rest_framework.decorators import action,api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError,APIException
 from drf_spectacular.utils import extend_schema,OpenApiTypes
-from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem,RegulatorySnapshot
+from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem,RegulatorySnapshot,LcrStressConfiguration,LcrStressRun
 from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
 from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers,regulatory_movement_history,regulatory_driver_detail
 from .regulatory_export import lcr_xlsx,nsfr_xlsx
+from .lcr_stress import default_configuration,normalise,calculate as calculate_lcr_stress,xlsx as lcr_stress_xlsx,DEFAULT_TOP,DEFAULTS
 
 class StaffWritePermission(BasePermission):
     def has_permission(self,request,view):
@@ -152,6 +154,66 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
         content=lcr_xlsx(regulatory_report(entity,'lcr',snapshot.as_of_date),snapshot.source_data.get('lcr_positions',[])) if report_type=='lcr' else nsfr_xlsx(snapshot.source_data.get('nsfr_lines',[]))
         response=HttpResponse(content,content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition']=f'attachment; filename="{entity.slug}_{report_type}_{snapshot.as_of_date}.xlsx"'
+        return response
+
+    def _stress_config(self,entity):
+        config,created=LcrStressConfiguration.objects.get_or_create(entity=entity,defaults={'configuration':default_configuration(),'top_depositor_amounts':DEFAULT_TOP})
+        if created or not config.configuration:
+            config.configuration=normalise(config.configuration);config.save()
+        return config
+
+    @action(detail=True,methods=['get','put'],url_path='lcr-stress-config')
+    def lcr_stress_config(self,request,slug=None):
+        config=self._stress_config(self.get_object())
+        if request.method=='PUT':
+            payload=request.data if isinstance(request.data,dict) else {}
+            try:
+                config.configuration=normalise(payload.get('configuration'))
+                config.top_depositor_amounts=payload.get('top_depositor_amounts') or DEFAULT_TOP
+            except Exception as error: raise ValidationError({'configuration':str(error)})
+            config.save()
+        return Response({'configuration':config.configuration,'top_depositor_amounts':config.top_depositor_amounts,'updated':config.updated})
+
+    @action(detail=True,methods=['post'],url_path='lcr-stress-config/restore-default')
+    def lcr_stress_restore_default(self,request,slug=None):
+        """Restore one protected Central Bank scenario without changing other settings."""
+        scenario_id=request.data.get('scenario_id')
+        factory=next((item for item in DEFAULTS if item['id']==scenario_id),None)
+        if not factory: raise ValidationError({'scenario_id':'Choose a shipped Central Bank scenario.'})
+        config=self._stress_config(self.get_object())
+        replacement=deepcopy(factory);found=False;updated=[]
+        for scenario in config.configuration.get('scenarios',[]):
+            if scenario.get('id')==scenario_id:
+                updated.append(replacement);found=True
+            else: updated.append(scenario)
+        if not found: updated.append(replacement)
+        config.configuration={**config.configuration,'scenarios':updated};config.save()
+        return Response({'configuration':config.configuration,'top_depositor_amounts':config.top_depositor_amounts,'updated':config.updated})
+
+    @action(detail=True,methods=['get','post'],url_path='lcr-stress-runs')
+    def lcr_stress_runs(self,request,slug=None):
+        entity=self.get_object()
+        if request.method=='GET':
+            return Response({'runs':[{'id':run.id,'as_of_date':run.as_of_date,'created':run.created,'baseline_lcr':run.results.get('baseline',{}).get('lcr'),'scenario_count':len(run.results.get('results',[]))} for run in LcrStressRun.objects.filter(entity=entity)[:25]]})
+        as_of=self._report_date(request)
+        snapshot=RegulatorySnapshot.objects.filter(entity=entity,as_of_date=as_of).first() if as_of else RegulatorySnapshot.objects.filter(entity=entity).first()
+        if not snapshot: raise ValidationError({'as_of':'No regulatory source snapshot is available.'})
+        config=self._stress_config(entity);results=calculate_lcr_stress(entity,snapshot.as_of_date,snapshot.source_data.get('lcr_positions',[]),config.configuration,config.top_depositor_amounts)
+        run=LcrStressRun.objects.create(entity=entity,as_of_date=snapshot.as_of_date,configuration={'configuration':config.configuration,'top_depositor_amounts':config.top_depositor_amounts},results=results)
+        return Response({'id':run.id,'as_of_date':run.as_of_date,'created':run.created,'results':run.results},status=201)
+
+    @action(detail=True,methods=['get'],url_path=r'lcr-stress-runs/(?P<run_id>[^/.]+)')
+    def lcr_stress_run(self,request,slug=None,run_id=None):
+        run=LcrStressRun.objects.filter(entity=self.get_object(),pk=run_id).first()
+        if not run: raise ValidationError({'run_id':'Stress-test run was not found.'})
+        return Response({'id':run.id,'as_of_date':run.as_of_date,'created':run.created,'configuration':run.configuration,'results':run.results})
+
+    @action(detail=True,methods=['get'],url_path=r'lcr-stress-runs/(?P<run_id>[^/.]+)/export')
+    def lcr_stress_export(self,request,slug=None,run_id=None):
+        run=LcrStressRun.objects.filter(entity=self.get_object(),pk=run_id).first()
+        if not run: raise ValidationError({'run_id':'Stress-test run was not found.'})
+        response=HttpResponse(lcr_stress_xlsx({'results':run.results}),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition']=f'attachment; filename="{self.get_object().slug}_lcr_stress_{run.as_of_date}.xlsx"'
         return response
 
     def _assumption_set(self, entity):

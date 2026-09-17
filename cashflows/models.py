@@ -138,6 +138,23 @@ class RegulatorySnapshot(models.Model):
         ordering = ['-as_of_date']
         constraints = [models.UniqueConstraint(fields=['entity', 'as_of_date'], name='unique_entity_regulatory_snapshot')]
 
+class LcrStressConfiguration(models.Model):
+    """Entity-scoped persisted legacy LCR stress scenario library."""
+    entity = models.OneToOneField(Entity, on_delete=models.CASCADE, related_name='lcr_stress_configuration')
+    configuration = models.JSONField(default=dict)
+    top_depositor_amounts = models.JSONField(default=dict)
+    updated = models.DateTimeField(auto_now=True)
+
+class LcrStressRun(models.Model):
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='lcr_stress_runs')
+    as_of_date = models.DateField()
+    configuration = models.JSONField(default=dict)
+    results = models.JSONField(default=dict)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created']
+
 class PortfolioContract(models.Model):
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='portfolio_contracts')
     external_id = models.CharField(max_length=64)

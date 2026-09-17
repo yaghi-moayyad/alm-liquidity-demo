@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem, RegulatorySourcePosition, RegulatorySnapshot
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem, RegulatorySourcePosition, RegulatorySnapshot, LcrStressConfiguration, LcrStressRun
 
 @admin.register(CalculationRun)
 class RunAdmin(admin.ModelAdmin):
@@ -55,3 +55,9 @@ class RegulatorySnapshotAdmin(admin.ModelAdmin):
     list_filter = ['entity','is_mock']
     search_fields = ['entity__slug','source']
     readonly_fields = ['created']
+
+admin.site.register(LcrStressConfiguration)
+@admin.register(LcrStressRun)
+class LcrStressRunAdmin(admin.ModelAdmin):
+    list_display=['id','entity','as_of_date','created']
+    readonly_fields=['entity','as_of_date','configuration','results','created']

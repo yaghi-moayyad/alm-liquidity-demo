@@ -1,11 +1,11 @@
 import {useState} from 'react';
 import {Outlet,NavLink,useNavigate,useLocation} from 'react-router-dom';
 import {Box,Stack,Typography,Drawer,Button,IconButton,Select,MenuItem,Chip,Avatar,Tooltip,Divider,Dialog,DialogTitle,DialogContent,Alert,LinearProgress,FormControl} from '@mui/material';
-import {DashboardOutlined,AccountBalanceWalletOutlined,AddCircleOutlineRounded,HistoryRounded,AssessmentOutlined,ApartmentRounded,MenuRounded,HelpOutlineRounded,LogoutRounded,CodeRounded,LayersOutlined,CloseRounded,ExpandMoreRounded,ArrowOutwardRounded,TuneRounded,QueryStatsRounded} from '@mui/icons-material';
+import {DashboardOutlined,AccountBalanceWalletOutlined,AddCircleOutlineRounded,HistoryRounded,AssessmentOutlined,ApartmentRounded,MenuRounded,HelpOutlineRounded,LogoutRounded,CodeRounded,LayersOutlined,CloseRounded,ExpandMoreRounded,ArrowOutwardRounded,TuneRounded,QueryStatsRounded,WarningAmberRounded} from '@mui/icons-material';
 import {useWorkspace} from '../context';
 import {csrf} from '../api';
 const width=242;
-const links=[{path:'/',label:'Overview',icon:DashboardOutlined},{path:'/lcr',label:'LCR',icon:QueryStatsRounded},{path:'/nsfr',label:'NSFR',icon:QueryStatsRounded},{path:'/portfolio',label:'Portfolio',icon:AccountBalanceWalletOutlined},{path:'/new',label:'New calculation',icon:AddCircleOutlineRounded},{path:'/runs',label:'Run history',icon:HistoryRounded},{path:'/results',label:'Results & controls',icon:AssessmentOutlined}];
+const links=[{path:'/',label:'Overview',icon:DashboardOutlined},{path:'/lcr',label:'LCR',icon:QueryStatsRounded},{path:'/lcr-stress',label:'LCR stress testing',icon:WarningAmberRounded},{path:'/nsfr',label:'NSFR',icon:QueryStatsRounded},{path:'/portfolio',label:'Portfolio',icon:AccountBalanceWalletOutlined},{path:'/new',label:'New calculation',icon:AddCircleOutlineRounded},{path:'/runs',label:'Run history',icon:HistoryRounded},{path:'/results',label:'Results & controls',icon:AssessmentOutlined}];
 export default function Shell(){
  const {entity,entities,selectEntity,session,loading,error}=useWorkspace();const nav=useNavigate(),location=useLocation();const [mobile,setMobile]=useState(false),[help,setHelp]=useState(false),[modules,setModules]=useState(false);
  const sidebar=<Box sx={{height:'100%',bgcolor:'#152A3D',color:'#D0DCE7',display:'flex',flexDirection:'column',px:2.1,py:3}}>
