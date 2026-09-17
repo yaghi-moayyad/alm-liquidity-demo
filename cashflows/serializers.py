@@ -158,7 +158,12 @@ class ProductCatalogueChoiceSerializer(serializers.ModelSerializer):
     """The GL is intentionally excluded from the application-facing catalogue."""
     class Meta:
         model=ProductCatalogueItem
-        fields=['id','classification','product_group','product_type']
+        fields=['id','classification','product_group','product_type','cash_flow_treatment','treatment_note']
+
+class ProductTreatmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=ProductCatalogueItem
+        fields=['cash_flow_treatment','treatment_note']
 
 class PortfolioInputSerializer(RunInputSerializer):
     expected_revision=serializers.IntegerField(min_value=1)

@@ -7,7 +7,7 @@ from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 from .engine import calculate, VERSION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumptionSet
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumptionSet, ProductCatalogueItem
 
 logger=logging.getLogger(__name__)
 
@@ -37,6 +37,8 @@ def hydrate_run_payload(payload):
                 'product_type':rule.product_type, 'currency_scope':rule.currency_scope,
                 'maturity_breakdown':rule.maturity_breakdown, 'value':rule.value, 'enabled':rule.enabled}
                 for rule in assumption_set.rules.all()],
+            'product_treatments': [{'product_group':item.product_group,'product_type':item.product_type,
+                'treatment':item.cash_flow_treatment} for item in ProductCatalogueItem.objects.filter(entity=config.entity,active=True)],
         }
     return hydrated
 

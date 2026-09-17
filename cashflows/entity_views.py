@@ -8,9 +8,10 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError,APIException
 from drf_spectacular.utils import extend_schema,OpenApiTypes
 from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem
-from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer
+from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
+from .regulatory import ncr_report
 
 class StaffWritePermission(BasePermission):
     def has_permission(self,request,view):
@@ -76,6 +77,19 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
         entity=self.get_object()
         items=ProductCatalogueItem.objects.filter(entity=entity,active=True)
         return Response(ProductCatalogueChoiceSerializer(items,many=True).data)
+
+    @extend_schema(methods=['PATCH'],request=ProductTreatmentSerializer,responses=ProductCatalogueChoiceSerializer)
+    @action(detail=True,methods=['patch'],url_path=r'product-catalogue/(?P<item_id>[^/.]+)')
+    def product_catalogue_detail(self,request,slug=None,item_id=None):
+        entity=self.get_object()
+        item=ProductCatalogueItem.objects.filter(entity=entity,pk=item_id).first()
+        if not item: raise ValidationError({'item_id':'Product catalogue item was not found for this entity.'})
+        serializer=ProductTreatmentSerializer(item,data=request.data,partial=True); serializer.is_valid(raise_exception=True); serializer.save()
+        return Response(ProductCatalogueChoiceSerializer(item).data)
+
+    @action(detail=True,methods=['get'],url_path='ncr-report')
+    def ncr_report(self,request,slug=None):
+        return Response(ncr_report(self.get_object()))
 
     def _assumption_set(self, entity):
         return LiquidityAssumptionSet.objects.prefetch_related('rules').filter(entity=entity,status='active').first()

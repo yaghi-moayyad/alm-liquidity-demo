@@ -91,6 +91,7 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
             for index, value in interest.items(): item['interest'][index] += value
 
     rules = (behavioral or {}).get('rules', []) if behavioral else []
+    treatments = (behavioral or {}).get('product_treatments', []) if behavioral else []
     def find_rule(category, group, product, scope='ALL'):
         for rule in rules:
             if not rule.get('enabled', True) or rule.get('category') != category: continue
@@ -100,11 +101,20 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
             return rule
         return None
 
+    def treatment_for(group, product):
+        for item in treatments:
+            if item.get('product_group') == group and item.get('product_type') == product:
+                return item.get('treatment', 'contractual')
+        # Runs produced before the product-treatment catalogue was introduced
+        # already carry behavioural rules. Keep those saved runs reproducible;
+        # new runs always contain an explicit catalogue snapshot.
+        return 'behavioral' if not treatments else 'contractual'
+
     base_currency = (behavioral or {}).get('base_currency', 'JOD')
     security_principal = {}
     for flow in flows:
         if flow['currency'] != currency: continue
-        if behavioral and flow.get('liquidity_group') == 'Marketable Securities & CDs':
+        if behavioral and flow.get('liquidity_group') == 'Marketable Securities & CDs' and treatment_for(flow.get('liquidity_group'), flow.get('liquidity_product') or 'Tbond') in ('behavioral','hybrid'):
             security_principal[flow['contract_id']] = security_principal.get(flow['contract_id'], D(0)) + D(flow['principal'])
             continue
         key = PRODUCT_LINES.get((flow['direction'], flow['product']))
@@ -122,7 +132,7 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
             product = item.get('liquidity_product') or 'CurrentAccount'
             scope = 'LCY' if currency == base_currency else 'FCY'
             rule = find_rule('deposit_runoff', group, product, scope)
-            if rule and key:
+            if rule and key and treatment_for(group, product) in ('behavioral','hybrid'):
                 balance = D(item['balance']); data[key]['balance'] += balance
                 increments = {}; prior = D(0)
                 for point in sorted(rule.get('value', {}).get('curve', []), key=lambda p: int(p.get('days', 0))):

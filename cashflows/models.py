@@ -83,6 +83,13 @@ class ProductCatalogueItem(models.Model):
     product_group = models.CharField(max_length=96)
     product_type = models.CharField(max_length=96)
     general_ledger = models.TextField()
+    class CashFlowTreatment(models.TextChoices):
+        CONTRACTUAL = 'contractual', 'Contractual'
+        BEHAVIORAL = 'behavioral', 'Behavioural'
+        HYBRID = 'hybrid', 'Hybrid'
+        EXCLUDED = 'excluded', 'Excluded'
+    cash_flow_treatment = models.CharField(max_length=16, choices=CashFlowTreatment.choices, default=CashFlowTreatment.CONTRACTUAL)
+    treatment_note = models.CharField(max_length=240, blank=True)
     is_temporary_gl = models.BooleanField(default=False)
     source = models.CharField(max_length=160, default='Jordan Product mapping workbook')
     active = models.BooleanField(default=True)
@@ -95,6 +102,27 @@ class ProductCatalogueItem(models.Model):
 
     def __str__(self):
         return f'{self.product_group} · {self.product_type}'
+
+
+class RegulatorySourcePosition(models.Model):
+    """Canonical source record for regulatory liquidity calculations."""
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='regulatory_positions')
+    external_id = models.CharField(max_length=64)
+    gl_code = models.CharField(max_length=96)
+    product_group = models.CharField(max_length=96)
+    product_type = models.CharField(max_length=96)
+    currency = models.CharField(max_length=3)
+    balance = models.DecimalField(max_digits=24, decimal_places=3)
+    lcr_category = models.CharField(max_length=64)
+    lcr_factor = models.DecimalField(max_digits=8, decimal_places=6)
+    lcr_direction = models.CharField(max_length=12)  # hqla, outflow, inflow
+    hqla_level = models.CharField(max_length=8, blank=True)
+    active = models.BooleanField(default=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['lcr_direction', 'lcr_category', 'external_id']
+        constraints = [models.UniqueConstraint(fields=['entity', 'external_id'], name='unique_entity_regulatory_position')]
 
 class PortfolioContract(models.Model):
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='portfolio_contracts')

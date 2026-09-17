@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem, RegulatorySourcePosition
 
 @admin.register(CalculationRun)
 class RunAdmin(admin.ModelAdmin):
@@ -39,6 +39,12 @@ class LiquidityAssumptionAdmin(admin.ModelAdmin):
 
 @admin.register(ProductCatalogueItem)
 class ProductCatalogueItemAdmin(admin.ModelAdmin):
-    list_display = ['classification','product_group','product_type','general_ledger','is_temporary_gl','active']
-    list_filter = ['classification','is_temporary_gl','active']
+    list_display = ['classification','product_group','product_type','cash_flow_treatment','general_ledger','is_temporary_gl','active']
+    list_filter = ['classification','cash_flow_treatment','is_temporary_gl','active']
     search_fields = ['product_group','product_type','general_ledger']
+
+@admin.register(RegulatorySourcePosition)
+class RegulatorySourcePositionAdmin(admin.ModelAdmin):
+    list_display = ['external_id','entity','lcr_category','lcr_direction','currency','balance','lcr_factor','hqla_level']
+    list_filter = ['entity','lcr_direction','hqla_level','currency']
+    search_fields = ['external_id','gl_code','product_group','product_type']
