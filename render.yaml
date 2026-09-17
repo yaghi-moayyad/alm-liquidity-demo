@@ -3,7 +3,7 @@ services:
     runtime: python
     name: alm-liquidity-demo-moayyad
     plan: free
-    buildCommand: pip install -r requirements-deploy.txt && python manage.py collectstatic --noinput
+    buildCommand: npm --prefix frontend ci && npm --prefix frontend run build && pip install -r requirements-deploy.txt && python manage.py collectstatic --noinput
     startCommand: bash render_start.sh
     envVars:
       - key: DJANGO_DEBUG
