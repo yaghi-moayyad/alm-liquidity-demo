@@ -190,6 +190,16 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
         config.configuration={**config.configuration,'scenarios':updated};config.save()
         return Response({'configuration':config.configuration,'top_depositor_amounts':config.top_depositor_amounts,'updated':config.updated})
 
+    @action(detail=True,methods=['get'],url_path='lcr-stress-preview')
+    def lcr_stress_preview(self,request,slug=None):
+        """Calculate the selected snapshot without creating a permanent stress-test run."""
+        entity=self.get_object();as_of=self._report_date(request)
+        snapshot=RegulatorySnapshot.objects.filter(entity=entity,as_of_date=as_of).first() if as_of else RegulatorySnapshot.objects.filter(entity=entity).first()
+        if not snapshot: raise ValidationError({'as_of':'No regulatory source snapshot is available.'})
+        config=self._stress_config(entity)
+        results=calculate_lcr_stress(entity,snapshot.as_of_date,snapshot.source_data.get('lcr_positions',[]),config.configuration,config.top_depositor_amounts)
+        return Response({'as_of_date':snapshot.as_of_date,'configuration':config.configuration,'results':results})
+
     @action(detail=True,methods=['get','post'],url_path='lcr-stress-runs')
     def lcr_stress_runs(self,request,slug=None):
         entity=self.get_object()
@@ -212,8 +222,9 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
     def lcr_stress_export(self,request,slug=None,run_id=None):
         run=LcrStressRun.objects.filter(entity=self.get_object(),pk=run_id).first()
         if not run: raise ValidationError({'run_id':'Stress-test run was not found.'})
-        response=HttpResponse(lcr_stress_xlsx({'results':run.results}),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition']=f'attachment; filename="{self.get_object().slug}_lcr_stress_{run.as_of_date}.xlsx"'
+        entity=self.get_object()
+        response=HttpResponse(lcr_stress_xlsx({'results':run.results},entity_name=entity.name,as_of_date=run.as_of_date),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition']=f'attachment; filename="{entity.slug}_lcr_stress_{run.as_of_date}.xlsx"'
         return response
 
     def _assumption_set(self, entity):

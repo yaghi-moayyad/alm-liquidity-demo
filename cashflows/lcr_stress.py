@@ -3,6 +3,7 @@ from copy import deepcopy
 from decimal import Decimal
 from io import BytesIO
 from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from .regulatory import lcr_report_from_positions
 
 D=Decimal
@@ -76,17 +77,66 @@ def calculate(entity,as_of,source,configuration,top_amounts):
             if additional_inflow: positions.append({'key':'stress_additional_inflow','label':'Independent additional cash inflow','balance':str(additional_inflow),'lcr_category':'inflow_customer','lcr_factor':'1'})
             report=lcr_report_from_positions(positions,entity,as_of_date=as_of,basis='Deterministic source-driven LCR stress calculation.')
             lcr=D(report['lcr']);limit=D(str(config['lcr_limit']));tolerance=D(str(config['lcr_tolerance']));status='Below Limit' if lcr<limit else 'Tolerance' if lcr<tolerance else 'Within Appetite'
-            results.append({'scenario_id':scenario['id'],'scenario':scenario['name'],'description':scenario.get('description',''),'type':'System Default' if scenario.get('system_default') else 'Custom','severity_id':level['id'],'severity':level['label'],'hqla':report['hqla'],'weighted_outflows':report['total_outflows'],'gross_weighted_inflows':report['total_inflows'],'inflow_cap':str(D(report['total_outflows'])*D(str(config['inflow_cap']))),'recognized_inflows':report['eligible_inflows'],'net_cash_outflow':report['net_cash_outflows'],'lcr':report['lcr'],'movement':str(lcr-baseline_lcr),'risk_status':status})
+            results.append({'scenario_id':scenario['id'],'scenario':scenario['name'],'description':scenario.get('description',''),'type':'System Default' if scenario.get('system_default') else 'Custom','severity_id':level['id'],'severity':level['label'],'hqla':report['hqla'],'weighted_outflows':report['total_outflows'],'gross_weighted_inflows':report['total_inflows'],'inflow_cap':str(D(report['total_outflows'])*D(str(config['inflow_cap']))),'recognized_inflows':report['eligible_inflows'],'net_cash_outflow':report['net_cash_outflows'],'lcr':report['lcr'],'movement':str(lcr-baseline_lcr),'risk_status':status,'lcr_report':report})
     return {'baseline':{'hqla':baseline['hqla'],'weighted_outflows':baseline['total_outflows'],'gross_weighted_inflows':baseline['total_inflows'],'inflow_cap':str(D(baseline['total_outflows'])*D(str(config['inflow_cap']))),'recognized_inflows':baseline['eligible_inflows'],'net_cash_outflow':baseline['net_cash_outflows'],'lcr':baseline['lcr'],'risk_status':'Within Appetite' if baseline_lcr>=D(str(config['lcr_tolerance'])) else 'Tolerance' if baseline_lcr>=D(str(config['lcr_limit'])) else 'Below Limit'},'results':results,'audit':audit,'limit':str(config['lcr_limit']),'tolerance':str(config['lcr_tolerance']),'inflow_cap':str(config['inflow_cap'])}
-def xlsx(run):
-    wb=Workbook();ws=wb.active;ws.title='Summary';ws.append(['LCR Stress Testing — Management Summary']);ws.append(['Limit',run['results']['limit'],'Tolerance',run['results']['tolerance']]);ws.append(['Baseline LCR',run['results']['baseline']['lcr']]);ws.append([]);ws.append(['Scenario','Severity','LCR','Movement','Risk status','Description'])
-    for row in run['results']['results']: ws.append([row['scenario'],row['severity'],float(row['lcr']),float(row['movement']),row['risk_status'],row['description']])
+def xlsx(run, entity_name='Jordan', as_of_date=None):
+    """Export the familiar bank-format stress overview, plus full results and audit sheets."""
+    results=run['results'];wb=Workbook();ws=wb.active;ws.title='Summary'
+    navy='183B57';red='D90000';peach='F4B183';green='70AD47';line='AAB4C3';thin=Side(style='thin',color=line)
+    border=Border(left=thin,right=thin,top=thin,bottom=thin)
+    centre=Alignment(horizontal='center',vertical='center');left=Alignment(vertical='center',wrap_text=True)
+    title_date=as_of_date.strftime('%B %Y') if as_of_date else 'Current'
+    ws.merge_cells('A1:B1');ws.merge_cells('C1:D1');ws['A1']=f'LCR ST {title_date}';ws['C1']=entity_name
+    for cell in ('A1','C1'):
+        ws[cell].fill=PatternFill('solid',fgColor=navy);ws[cell].font=Font(bold=True,color='FFFFFF',size=12);ws[cell].alignment=centre
+    thresholds=[('Limit',results['limit'],red),('Tolerance',results['tolerance'],peach),('Risk Appetite',f">{results['tolerance']}",green)]
+    for row,(label,value,color) in enumerate(thresholds,2):
+        ws.merge_cells(start_row=row,start_column=1,end_row=row,end_column=2);ws.merge_cells(start_row=row,start_column=3,end_row=row,end_column=4)
+        ws.cell(row,1,label);ws.cell(row,3,value)
+        for col in range(1,5):
+            cell=ws.cell(row,col);cell.fill=PatternFill('solid',fgColor=color);cell.font=Font(bold=True,color='FFFFFF' if color==red else '10233E');cell.alignment=centre
+    ws['A5']='Baseline';ws['B5']='';ws['C5']=float(results['baseline']['lcr']);ws['D5']=''
+    ws.merge_cells('A5:B5')
+    for cell in ws[5]: cell.border=border;cell.font=Font(bold=True);cell.alignment=centre
+    ws['C5'].number_format='0.0%'
+    headers=['Scenario','Severity','LCR ST','Movement']
+    for col,header in enumerate(headers,1):
+        cell=ws.cell(6,col,header);cell.fill=PatternFill('solid',fgColor=navy);cell.font=Font(bold=True,color='FFFFFF');cell.alignment=centre;cell.border=border
+    row_index=7;groups=[]
+    for item in results['results']:
+        if not groups or groups[-1][0]!=item['scenario']:
+            groups.append((item['scenario'],[]))
+        groups[-1][1].append(item)
+    for scenario,items in groups:
+        start=row_index
+        for item in items:
+            ws.cell(row_index,2,item['severity']);ws.cell(row_index,3,float(item['lcr']));ws.cell(row_index,4,float(item['movement']))
+            for col in range(1,5): ws.cell(row_index,col).border=border;ws.cell(row_index,col).alignment=centre
+            ws.cell(row_index,3).number_format='0.0%';ws.cell(row_index,4).number_format='0.0%;-0.0%'
+            row_index+=1
+        if len(items)>1: ws.merge_cells(start_row=start,start_column=1,end_row=row_index-1,end_column=1)
+        ws.cell(start,1,scenario);ws.cell(start,1).font=Font(bold=True);ws.cell(start,1).alignment=left;ws.cell(start,1).border=border
+    row_index+=2
+    for col,header in enumerate(['Scenario','Description'],1):
+        cell=ws.cell(row_index,col,header);cell.fill=PatternFill('solid',fgColor=navy);cell.font=Font(bold=True,color='FFFFFF');cell.alignment=centre;cell.border=border
+    ws.merge_cells(start_row=row_index,start_column=1,end_row=row_index,end_column=2);ws.merge_cells(start_row=row_index,start_column=3,end_row=row_index,end_column=4)
+    row_index+=1
+    ws.merge_cells(start_row=row_index,start_column=1,end_row=row_index,end_column=2);ws.merge_cells(start_row=row_index,start_column=3,end_row=row_index,end_column=4)
+    ws.cell(row_index,1,'Baseline');ws.cell(row_index,3,'This scenario represents normal operating conditions without any stress.')
+    for col in range(1,5): ws.cell(row_index,col).border=border;ws.cell(row_index,col).alignment=left
+    row_index+=1
+    for scenario,items in groups:
+        ws.merge_cells(start_row=row_index,start_column=1,end_row=row_index,end_column=2);ws.merge_cells(start_row=row_index,start_column=3,end_row=row_index,end_column=4)
+        ws.cell(row_index,1,scenario);ws.cell(row_index,3,items[0]['description'])
+        for col in range(1,5): ws.cell(row_index,col).border=border;ws.cell(row_index,col).alignment=left
+        ws.row_dimensions[row_index].height=42;row_index+=1
+    for column,width in {'A':28,'B':16,'C':18,'D':18}.items(): ws.column_dimensions[column].width=width
     rs=wb.create_sheet('Results');rs.append(['Scenario','Severity','HQLA','Weighted Outflows','Gross Inflows','75% Inflow Cap','Recognized Inflows','Net Cash Outflow','LCR','Movement','Risk Status'])
-    for row in run['results']['results']: rs.append([row['scenario'],row['severity'],float(row['hqla']),float(row['weighted_outflows']),float(row['gross_weighted_inflows']),float(row['inflow_cap']),float(row['recognized_inflows']),float(row['net_cash_outflow']),float(row['lcr']),float(row['movement']),row['risk_status']])
+    for item in results['results']: rs.append([item['scenario'],item['severity'],float(item['hqla']),float(item['weighted_outflows']),float(item['gross_weighted_inflows']),float(item['inflow_cap']),float(item['recognized_inflows']),float(item['net_cash_outflow']),float(item['lcr']),float(item['movement']),item['risk_status']])
     audit=wb.create_sheet('Rule Impact Audit');audit.append(['Scenario','Severity','Rule','Operation','Target','Element','Baseline Amount','Stressed Amount','Weighted Delta'])
-    for row in run['results']['audit']: audit.append([row.get(key,'') for key in ('scenario','severity','rule','operation','target','element','baseline_amount','stressed_amount','weighted_delta')])
-    for sheet in wb.worksheets:
+    for item in results['audit']: audit.append([item.get(key,'') for key in ('scenario','severity','rule','operation','target','element','baseline_amount','stressed_amount','weighted_delta')])
+    for sheet in (rs,audit):
         sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
-        for cell in sheet[1]: cell.font=cell.font.copy(bold=True,color='FFFFFF');cell.fill=cell.fill.copy(fgColor='183B57',fill_type='solid')
-        for column in sheet.columns: sheet.column_dimensions[column[0].column_letter].width=min(42,max(12,max(len(str(c.value or '')) for c in column)+2))
+        for cell in sheet[1]: cell.font=Font(bold=True,color='FFFFFF');cell.fill=PatternFill('solid',fgColor=navy);cell.alignment=centre
+        for column in sheet.columns: sheet.column_dimensions[column[0].column_letter].width=min(42,max(12,max(len(str(cell.value or '')) for cell in column)+2))
     output=BytesIO();wb.save(output);return output.getvalue()

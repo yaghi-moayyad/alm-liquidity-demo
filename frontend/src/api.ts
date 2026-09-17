@@ -18,6 +18,7 @@ import type {
   RegulatoryMovement,
   RegulatoryDriverDetail,
   StressConfig,
+  LcrStressResults,
   StressRun,
 } from "./types";
 export function csrf() {
@@ -182,6 +183,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ scenario_id: scenarioId }),
     }),
+  lcrStressPreview: (entity: string, asOf: string) =>
+    request<{
+      as_of_date: string;
+      configuration: StressConfig;
+      results: LcrStressResults;
+    }>(`/entities/${entity}/lcr-stress-preview?as_of=${asOf}`),
   lcrStressRuns: (entity: string) =>
     request<{
       runs: {
