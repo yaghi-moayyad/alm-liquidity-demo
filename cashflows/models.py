@@ -53,6 +53,10 @@ class LiquidityAssumptionSet(models.Model):
 class LiquidityAssumption(models.Model):
     class Category(models.TextChoices):
         DEPOSIT_RUNOFF = 'deposit_runoff', 'Deposit runoff'
+        TERM_DEPOSIT_EARLY_WITHDRAWAL = 'term_deposit_early_withdrawal', 'Term-deposit early withdrawal'
+        LOAN_PREPAYMENT = 'loan_prepayment', 'Loan prepayment'
+        FACILITY_DRAWDOWN = 'facility_drawdown', 'Approved facility drawdown'
+        ROLLOVER = 'rollover', 'Rollover / renewal'
         SECURITY_LIQUIDATION = 'security_liquidation', 'Security liquidation'
         SECURITY_HAIRCUT = 'security_haircut', 'Security haircut'
 

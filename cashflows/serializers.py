@@ -133,18 +133,30 @@ class LiquidityAssumptionSerializer(serializers.ModelSerializer):
     def validate(self,attrs):
         category=attrs.get('category',self.instance.category if self.instance else None)
         value=attrs.get('value',self.instance.value if self.instance else {})
-        if category=='deposit_runoff':
+        curve_categories={'deposit_runoff','term_deposit_early_withdrawal','loan_prepayment','facility_drawdown'}
+        if category in curve_categories:
             points=value.get('curve') if isinstance(value,dict) else None
             if not isinstance(points,list) or not points:
-                raise serializers.ValidationError({'value':'Add at least one runoff curve point.'})
+                raise serializers.ValidationError({'value':'Add at least one cumulative curve point.'})
             previous=-1; days_seen=set()
             for point in points:
                 try: days=int(point['days']); cumulative=Decimal(str(point['cumulative']))
                 except (KeyError,TypeError,ValueError): raise serializers.ValidationError({'value':'Every curve point needs numeric days and cumulative percentage.'})
                 if days < 1 or days in days_seen: raise serializers.ValidationError({'value':'Curve days must be positive and unique.'})
                 if not Decimal('0') <= cumulative <= Decimal('1') or cumulative < previous:
-                    raise serializers.ValidationError({'value':'Cumulative runoff must increase from 0% to 100%.'})
+                    raise serializers.ValidationError({'value':'Cumulative percentages must increase from 0% to 100%.'})
                 days_seen.add(days); previous=cumulative
+        elif category=='security_haircut':
+            try: haircut=Decimal(str(value.get('haircut')))
+            except (AttributeError,TypeError,ValueError): raise serializers.ValidationError({'value':'Enter a numeric haircut.'})
+            if not Decimal('0') <= haircut <= Decimal('1'):
+                raise serializers.ValidationError({'value':'Haircut must be between 0% and 100%.'})
+        elif category=='rollover':
+            try:
+                rate=Decimal(str(value.get('rollover_rate'))); days=int(value.get('rollover_days'))
+            except (AttributeError,TypeError,ValueError): raise serializers.ValidationError({'value':'Enter a rollover rate and whole-number renewal days.'})
+            if not Decimal('0') <= rate <= Decimal('1') or not 1 <= days <= 36500:
+                raise serializers.ValidationError({'value':'Rollover rate must be 0%–100% and renewal days 1–36500.'})
         return attrs
 
 class LiquidityAssumptionSetSerializer(serializers.ModelSerializer):

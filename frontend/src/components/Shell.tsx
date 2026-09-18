@@ -589,7 +589,6 @@ export default function Shell() {
           </Typography>
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
             {[
-              "Behavioral cash flows",
               "IRRBB · EVE & NII",
               "Stress testing",
               "Balance-sheet simulation",

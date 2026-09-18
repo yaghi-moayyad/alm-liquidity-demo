@@ -24,6 +24,9 @@ PRODUCT_LINES = {
     ('outflow', 'term_deposit'): 'retail_time_out',
     ('outflow', 'borrowing'): 'borrowed_funds',
     ('outflow', 'demand_deposit'): 'retail_call_out',
+    ('outflow', 'undrawn_commitment'): 'undrawn_commitment',
+    ('outflow', 'undrawn_uncommitted'): 'undrawn_uncommitted',
+    ('outflow', 'trade_finance'): 'trade_finance',
     ('inflow', 'cash_central_bank'): 'cash_central_bank',
 }
 
@@ -71,6 +74,54 @@ def _zeroes():
 def _add(left, right): return [a + b for a, b in zip(left, right)]
 def _minus(left, right): return [a - b for a, b in zip(left, right)]
 
+
+def _curve_increments(rule, bucket_index):
+    """Convert a cumulative curve into amounts by horizontal ladder bucket."""
+    increments, prior = {}, D(0)
+    for point in sorted(rule.get('value', {}).get('curve', []), key=lambda p: int(p.get('days', 0))):
+        current = D(str(point.get('cumulative', 0)))
+        increase = max(D(0), current - prior)
+        prior = max(prior, current)
+        if increase:
+            index = bucket_index[bucket_code(int(point['days']))]
+            increments[index] = increments.get(index, D(0)) + increase
+    return increments
+
+
+def _move_to_earlier(original, targets):
+    """Shift principal into target buckets, taking it from later maturities.
+
+    This is deliberately principal-only: it never invents behavioural interest.
+    If a contractual schedule is already earlier than the requested curve point,
+    it remains where it is rather than being moved later.
+    """
+    adjusted = list(original)
+    total = sum(adjusted, D(0))
+    for target, proportion in sorted(targets.items()):
+        amount = total * proportion
+        remaining = amount
+        for source in range(len(adjusted) - 1, target - 1, -1):
+            take = min(adjusted[source], remaining)
+            adjusted[source] -= take
+            remaining -= take
+            if not remaining:
+                break
+        adjusted[target] += amount - remaining
+    return adjusted
+
+
+def _apply_rollover(original, days_by_bucket, rollover_rate, rollover_days, bucket_index):
+    """Shift the renewed share of dated principal to its renewal horizon."""
+    adjusted = list(original)
+    for source, amount in enumerate(original):
+        renewed = amount * rollover_rate
+        if not renewed:
+            continue
+        adjusted[source] -= renewed
+        target = bucket_index[bucket_code(days_by_bucket[source] + rollover_days)]
+        adjusted[target] += renewed
+    return adjusted
+
 def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
     """Return a horizontal ladder; optional rules create a behavioural view.
 
@@ -112,6 +163,20 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
 
     base_currency = (behavioral or {}).get('base_currency', 'JOD')
     security_principal = {}
+    adjustable = {}
+
+    def scope_for(item):
+        return 'LCY' if item['currency'] == base_currency else 'FCY'
+
+    def dated_rule(item):
+        group = item.get('liquidity_group') or ''
+        product = item.get('liquidity_product') or item['product']
+        if treatment_for(group, product) not in ('behavioral', 'hybrid'):
+            return None
+        category = {'loan': 'loan_prepayment', 'term_deposit': 'term_deposit_early_withdrawal',
+                    'interbank_asset': 'rollover', 'borrowing': 'rollover'}.get(item['product'])
+        return find_rule(category, group, product, scope_for(item)) if category else None
+
     for flow in flows:
         if flow['currency'] != currency: continue
         if behavioral and flow.get('liquidity_group') == 'Marketable Securities & CDs' and treatment_for(flow.get('liquidity_group'), flow.get('liquidity_product') or 'Tbond') in ('behavioral','hybrid'):
@@ -120,10 +185,44 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
         key = PRODUCT_LINES.get((flow['direction'], flow['product']))
         if not key: continue
         index = bucket_index[bucket_code(flow['days_from_asof'])]
+        rule = dated_rule(flow) if behavioral else None
+        if rule:
+            identity = (flow['contract_id'], key, flow.get('liquidity_group') or '', flow.get('liquidity_product') or flow['product'], rule['category'])
+            item = adjustable.setdefault(identity, {'flows': [], 'rule': rule, 'key': key,
+                                                    'product': flow.get('liquidity_product') or flow['product']})
+            item['flows'].append((flow, index))
+            continue
         data[key]['principal'][index] += D(flow['principal'])
         data[key]['interest'][index] += D(flow['interest'])
         data[key]['balance'] += D(flow['principal'])
         add_detail(key, flow.get('liquidity_product') or flow['product'], D(flow['principal']), {index:D(flow['principal'])}, {index:D(flow['interest'])})
+
+    # Loan prepayment / early-withdrawal rules accelerate only contractual
+    # principal. Rollover rules postpone the renewed share. In each case the
+    # principal total is conserved, which is a key control for the cash-flow run.
+    for item in adjustable.values():
+        principal = [D(0)] * len(BANK_BUCKETS)
+        interest = [D(0)] * len(BANK_BUCKETS)
+        days_by_bucket = [0] * len(BANK_BUCKETS)
+        for flow, index in item['flows']:
+            principal[index] += D(flow['principal'])
+            interest[index] += D(flow['interest'])
+            days_by_bucket[index] = max(days_by_bucket[index], int(flow['days_from_asof']))
+        rule = item['rule']
+        if rule['category'] in ('loan_prepayment', 'term_deposit_early_withdrawal'):
+            adjusted = _move_to_earlier(principal, _curve_increments(rule, bucket_index))
+        else:
+            value = rule.get('value', {})
+            adjusted = _apply_rollover(principal, days_by_bucket, D(str(value.get('rollover_rate', 0))),
+                                       int(value.get('rollover_days', 1)), bucket_index)
+        data[item['key']]['balance'] += sum(principal, D(0))
+        for index, amount in enumerate(adjusted):
+            data[item['key']]['principal'][index] += amount
+        for index, amount in enumerate(interest):
+            data[item['key']]['interest'][index] += amount
+        add_detail(item['key'], item['product'], sum(principal, D(0)),
+                   {i: amount for i, amount in enumerate(adjusted) if amount},
+                   {i: amount for i, amount in enumerate(interest) if amount})
     for item in undated:
         if item['currency'] != currency: continue
         key = PRODUCT_LINES.get((item.get('direction', 'outflow'), item.get('product', 'demand_deposit')))
@@ -134,15 +233,20 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
             rule = find_rule('deposit_runoff', group, product, scope)
             if rule and key and treatment_for(group, product) in ('behavioral','hybrid'):
                 balance = D(item['balance']); data[key]['balance'] += balance
-                increments = {}; prior = D(0)
-                for point in sorted(rule.get('value', {}).get('curve', []), key=lambda p: int(p.get('days', 0))):
-                    current = D(str(point.get('cumulative', 0)))
-                    increase = max(D(0), current - prior); prior = max(prior, current)
-                    if increase:
-                        index = bucket_index[bucket_code(int(point['days']))]
-                        amount = balance * increase
-                        data[key]['principal'][index] += amount
-                        increments[index] = increments.get(index, D(0)) + amount
+                increments = {index: balance * percentage for index, percentage in _curve_increments(rule, bucket_index).items()}
+                for index, amount in increments.items():
+                    data[key]['principal'][index] += amount
+                add_detail(key, product, balance, increments)
+                continue
+        if behavioral and item.get('product') in ('undrawn_commitment', 'undrawn_uncommitted', 'trade_finance'):
+            group = item.get('liquidity_group') or {'undrawn_commitment': 'UndrawnCommitment', 'undrawn_uncommitted': 'UndrawnUncommitted', 'trade_finance': 'TradeFinance'}[item['product']]
+            product = item.get('liquidity_product') or {'undrawn_commitment': 'UndrawnCommitment', 'undrawn_uncommitted': 'UndrawnUncommitted', 'trade_finance': 'ALL'}[item['product']]
+            rule = find_rule('facility_drawdown', group, product, scope_for(item))
+            if rule and key and treatment_for(group, product) in ('behavioral', 'hybrid'):
+                balance = D(item['balance']); data[key]['balance'] += balance
+                increments = {index: balance * percentage for index, percentage in _curve_increments(rule, bucket_index).items()}
+                for index, amount in increments.items():
+                    data[key]['principal'][index] += amount
                 add_detail(key, product, balance, increments)
                 continue
         if key:

@@ -9,7 +9,8 @@ MAX_CONTRACTS = 2000
 MAX_PERIODS = 1200
 D = Decimal
 PRODUCTS = {'loan': 'inflow', 'bond': 'inflow', 'interbank_asset': 'inflow', 'cash_central_bank': 'inflow',
-            'term_deposit': 'outflow', 'borrowing': 'outflow', 'demand_deposit': 'outflow'}
+            'term_deposit': 'outflow', 'borrowing': 'outflow', 'demand_deposit': 'outflow',
+            'undrawn_commitment': 'outflow', 'undrawn_uncommitted': 'outflow', 'trade_finance': 'outflow'}
 PRECISION = {'JOD': D('.001'), 'USD': D('.01'), 'EUR': D('.01'), 'GBP': D('.01')}
 DEFAULT_BUCKETS = [1, 7, 14, 30, 60, 90, 180, 270, 365, 730, 1095, 1825]
 REQUIRED = {'contract_id', 'product', 'currency', 'principal'}
@@ -137,13 +138,16 @@ def schedule(contract, asof, settings=None):
         base['liquidity_product'] = str(contract['liquidity_product'])
     if contract.get('liquidity_group'):
         base['liquidity_group'] = str(contract['liquidity_group'])
-    if product in ('demand_deposit', 'cash_central_bank'):
+    if product in ('demand_deposit', 'cash_central_bank', 'undrawn_commitment', 'undrawn_uncommitted', 'trade_finance'):
         if set(contract) & {'annual_rate', 'repayment', 'day_count', 'frequency_months',
                             'accrual_start', 'next_payment', 'maturity', 'end_of_month'}:
             raise ValueError('Undated demand deposits accept balance fields only; dated terms need separate rules')
         if product == 'demand_deposit':
             return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
                               'reason': 'Open maturity: separately disclosed; no invented withdrawal date or interest schedule'}
+        if product in ('undrawn_commitment', 'undrawn_uncommitted', 'trade_finance'):
+            return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
+                              'reason': 'Undrawn approved facility: open maturity until an approved drawdown rule is selected'}
         return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
                           'reason': 'Cash and central-bank position: separately disclosed as counterbalancing capacity'}
     needed = {'annual_rate', 'repayment', 'day_count', 'frequency_months', 'accrual_start', 'next_payment', 'maturity'}

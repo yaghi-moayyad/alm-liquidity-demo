@@ -156,7 +156,14 @@ export type EntitySettings = {
 };
 export type LiquidityAssumption = {
   id: number;
-  category: "deposit_runoff" | "security_liquidation" | "security_haircut";
+  category:
+    | "deposit_runoff"
+    | "term_deposit_early_withdrawal"
+    | "loan_prepayment"
+    | "facility_drawdown"
+    | "rollover"
+    | "security_liquidation"
+    | "security_haircut";
   title: string;
   product_group: string;
   product_type: string;
@@ -167,6 +174,8 @@ export type LiquidityAssumption = {
     curve_type?: string;
     timing?: string;
     haircut?: string;
+    rollover_rate?: string;
+    rollover_days?: number;
   };
   enabled: boolean;
   sort_order: number;
