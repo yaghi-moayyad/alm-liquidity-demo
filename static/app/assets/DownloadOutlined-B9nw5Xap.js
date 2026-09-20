@@ -1,1 +1,0 @@
-import{c as o,j as t}from"./index-CdD6LxxA.js";const s=o(t.jsx("path",{d:"M15.41 16.09l-4.58-4.59 4.58-4.59L14 5.5l-6 6 6 6z"})),r=o(t.jsx("path",{d:"M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"})),e=o(t.jsx("path",{d:"M19 9h-4V3H9v6H5l7 7zm-8 2V5h2v6h1.17L12 13.17 9.83 11zm-6 7h14v2H5z"}));export{e as D,r as K,s as a};
