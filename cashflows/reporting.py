@@ -179,10 +179,15 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
 
     for flow in flows:
         if flow['currency'] != currency: continue
-        if behavioral and flow.get('liquidity_group') == 'Marketable Securities & CDs' and treatment_for(flow.get('liquidity_group'), flow.get('liquidity_product') or 'Tbond') in ('behavioral','hybrid'):
+        is_marketable_security = flow.get('liquidity_group') == 'Marketable Securities & CDs'
+        if behavioral and is_marketable_security and treatment_for(flow.get('liquidity_group'), flow.get('liquidity_product') or 'Tbond') in ('behavioral','hybrid'):
             security_principal[flow['contract_id']] = security_principal.get(flow['contract_id'], D(0)) + D(flow['principal'])
             continue
-        key = PRODUCT_LINES.get((flow['direction'], flow['product']))
+        # Both bases retain the full balance-sheet population.  Contractual
+        # marketable securities remain counterbalancing capacity, placed in
+        # their actual maturity buckets; the behavioural basis may subsequently
+        # move them to an approved liquidation bucket and apply a haircut.
+        key = 'marketable_securities' if is_marketable_security else PRODUCT_LINES.get((flow['direction'], flow['product']))
         if not key: continue
         index = bucket_index[bucket_code(flow['days_from_asof'])]
         rule = dated_rule(flow) if behavioral else None
@@ -262,8 +267,9 @@ def build_bank_ladder(flows, undated, currency, precision, behavioral=None):
         by_contract = {f['contract_id']: f for f in flows if f['currency'] == currency}
         for contract_id, balance in security_principal.items():
             flow = by_contract[contract_id]; product = flow.get('liquidity_product') or 'Tbond'
-            timing = find_rule('security_liquidation', 'Marketable Securities & CDs', product)
-            haircut = find_rule('security_haircut', 'Marketable Securities & CDs', product)
+            scope = 'LCY' if currency == base_currency else 'FCY'
+            timing = find_rule('security_liquidation', 'Marketable Securities & CDs', product, scope)
+            haircut = find_rule('security_haircut', 'Marketable Securities & CDs', product, scope)
             if not timing: continue
             code = timing.get('value', {}).get('timing', '1d')
             days = {'1d':1, '1w':7, '1w2w':14, '1m':30, '1y':365}.get(code, 1)

@@ -99,6 +99,24 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(D(behavioural['principal'][5]),D(casa['principal'])*D('.09'))
         self.assertEqual(behavioural['children'][0]['label'],'CurrentAccount')
 
+    def test_contractual_marketable_security_stays_at_contractual_maturity(self):
+        p=sample()
+        bond=next(c for c in p['contracts'] if c['contract_id']=='BOND-3001')
+        bond.update({'liquidity_group':'Marketable Securities & CDs','liquidity_product':'Tbond'})
+        p['behavioral_assumption_set']={'base_currency':'JOD','product_treatments':[
+            {'product_group':'Marketable Securities & CDs','product_type':'Tbond','treatment':'behavioral'},
+        ],'rules':[
+            {'category':'security_liquidation','product_group':'Marketable Securities & CDs','product_type':'Tbond','currency_scope':'LCY','enabled':True,'value':{'timing':'1d'}},
+            {'category':'security_haircut','product_group':'Marketable Securities & CDs','product_type':'Tbond','currency_scope':'LCY','enabled':True,'value':{'haircut':'0.10'}},
+        ]}
+        result=calculate(p)
+        contractual={row['key']:row for row in result['bank_ladder']['JOD']['rows']}['marketable_securities']
+        behavioural={row['key']:row for row in result['behavioral_bank_ladder']['JOD']['rows']}['marketable_securities']
+        self.assertEqual(D(contractual['balance']),D('500000.000'))
+        self.assertEqual(sum(map(D,contractual['principal'])),D('500000.000'))
+        self.assertGreater(D(contractual['principal'][16]),D(0))
+        self.assertEqual(D(behavioural['principal'][1]),D('450000.000'))
+
     def test_behavioural_prepayment_accelerates_principal_without_creating_cash(self):
         p={'as_of_date':'2026-01-01','entity':'Jordan','bucket_days':[30,60,90], 'contracts':[
             contract(liquidity_group='Retail Time', liquidity_product='MortgageLoan'),
