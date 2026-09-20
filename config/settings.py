@@ -92,8 +92,8 @@ REST_FRAMEWORK = {
     'COERCE_DECIMAL_TO_STRING': True,
 }
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Contractual Liquidity API', 'VERSION': '0.3.0',
-    'DESCRIPTION': 'Django/DRF API for contractual cash-flow runs. Decimal amounts are strings. Runs are private to their submitting user.',
+    'TITLE': 'ALM Liquidity API', 'VERSION': '0.4.0',
+    'DESCRIPTION': 'Django/DRF API for contractual and behavioural cash flows plus source-data LCR/NSFR calculations. Decimal amounts are strings.',
     'SERVE_INCLUDE_SCHEMA': False, 'COMPONENT_SPLIT_REQUEST': True,
     'SERVE_PERMISSIONS': ['rest_framework.permissions.IsAuthenticated'],
 }

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem, RegulatorySourcePosition, RegulatorySnapshot, LcrStressConfiguration, LcrStressRun
+from .models import CalculationRun, CashFlow, BehavioralCashFlow, Entity, EntityConfiguration, PortfolioContract, LiquidityAssumptionSet, LiquidityAssumption, ProductCatalogueItem, RegulatoryConfiguration, RegulatoryMapping, RegulatoryCalculation, RegulatoryContribution
 
 @admin.register(CalculationRun)
 class RunAdmin(admin.ModelAdmin):
@@ -39,25 +39,21 @@ class LiquidityAssumptionAdmin(admin.ModelAdmin):
 
 @admin.register(ProductCatalogueItem)
 class ProductCatalogueItemAdmin(admin.ModelAdmin):
-    list_display = ['classification','product_group','product_type','cash_flow_treatment','general_ledger','is_temporary_gl','active']
-    list_filter = ['classification','cash_flow_treatment','is_temporary_gl','active']
+    list_display = ['classification','product_group','product_type','cashflow_treatment','general_ledger','is_temporary_gl','active']
+    list_filter = ['classification','cashflow_treatment','is_temporary_gl','active']
     search_fields = ['product_group','product_type','general_ledger']
 
-@admin.register(RegulatorySourcePosition)
-class RegulatorySourcePositionAdmin(admin.ModelAdmin):
-    list_display = ['external_id','entity','lcr_category','lcr_direction','currency','balance','lcr_factor','hqla_level']
-    list_filter = ['entity','lcr_direction','hqla_level','currency']
-    search_fields = ['external_id','gl_code','product_group','product_type']
+@admin.register(BehavioralCashFlow)
+class BehavioralFlowAdmin(admin.ModelAdmin):
+    list_display = ['contract_id','run','payment_date','currency','principal','behavioral_source','behavioral_rule_title']
+    search_fields = ['contract_id','behavioral_rule_title']
+    list_filter = ['currency','product','behavioral_source']
+    readonly_fields = [f.name for f in BehavioralCashFlow._meta.fields]
+    def has_add_permission(self,request): return False
+    def has_delete_permission(self,request,obj=None): return False
+    def has_change_permission(self,request,obj=None): return False
 
-@admin.register(RegulatorySnapshot)
-class RegulatorySnapshotAdmin(admin.ModelAdmin):
-    list_display = ['entity','as_of_date','source','is_mock','created']
-    list_filter = ['entity','is_mock']
-    search_fields = ['entity__slug','source']
-    readonly_fields = ['created']
-
-admin.site.register(LcrStressConfiguration)
-@admin.register(LcrStressRun)
-class LcrStressRunAdmin(admin.ModelAdmin):
-    list_display=['id','entity','as_of_date','created']
-    readonly_fields=['entity','as_of_date','configuration','results','created']
+admin.site.register(RegulatoryConfiguration)
+admin.site.register(RegulatoryMapping)
+admin.site.register(RegulatoryCalculation)
+admin.site.register(RegulatoryContribution)

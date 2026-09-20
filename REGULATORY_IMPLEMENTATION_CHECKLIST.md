@@ -1,0 +1,23 @@
+# Regulatory module implementation checklist
+
+- [x] Calculates from existing ALM source portfolio
+- [x] Configurable source-product regulatory mapping layer
+- [x] Optional liquidity-group / liquidity-product mapping override
+- [x] Reporting-currency FX configuration
+- [x] LCR HQLA / outflow / inflow line calculations
+- [x] 75% LCR inflow cap
+- [x] LCR net cash outflows and ratio
+- [x] NSFR ASF / RSF calculations
+- [x] NSFR residual-maturity factor selection
+- [x] NSFR ratio
+- [x] Persisted regulatory calculation runs
+- [x] Persisted contract-level audit contributions
+- [x] Mapping and missing-FX warnings
+- [x] LCR / NSFR report UI
+- [x] Contract-level drill-down from report lines
+- [x] CSV exports
+- [x] Combined Excel workbook export
+- [x] Run history
+- [x] Focused deterministic engine test added
+- [ ] Bank/CBJ-approved mapping/factor sign-off
+- [ ] Group consolidation
