@@ -14,7 +14,7 @@ from .engine import VERSION
 from .models import CalculationRun, Entity, EntityConfiguration, PortfolioContract
 from .sample import sample
 from .serializers import (RunInputSerializer,RunListSerializer,RunDetailSerializer,RunAcceptedSerializer,
-                          CashFlowSerializer,FlowPageSerializer,FlowQuerySerializer,RunPageSerializer,HealthSerializer,
+                          CashFlowSerializer,BehavioralCashFlowSerializer,FlowPageSerializer,BehavioralFlowPageSerializer,FlowQuerySerializer,RunPageSerializer,HealthSerializer,
                           ContractSearchQuerySerializer,RunContractSerializer,ContractSearchResponseSerializer)
 from .services import submit_run
 
@@ -117,6 +117,20 @@ class RunViewSet(viewsets.GenericViewSet):
         offset,limit=params['offset'],params['limit']
         return Response({'total':total,'offset':offset,'limit':limit,'cashflows':CashFlowSerializer(queryset[offset:offset+limit],many=True).data})
 
+    @extend_schema(parameters=[FlowQuerySerializer],responses=BehavioralFlowPageSerializer)
+    @action(detail=True,methods=['get'],url_path='behavioral-cashflows')
+    def behavioral_cashflows(self,request,pk=None):
+        run=self.ready_run()
+        filters=FlowQuerySerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        params=filters.validated_data
+        queryset=run.behavioral_cashflows.all()
+        for key in ('contract_id','currency','product'):
+            if key in params: queryset=queryset.filter(**{key:params[key]})
+        total=queryset.count()
+        offset,limit=params['offset'],params['limit']
+        return Response({'total':total,'offset':offset,'limit':limit,'cashflows':BehavioralCashFlowSerializer(queryset[offset:offset+limit],many=True).data})
+
     @extend_schema(parameters=[ContractSearchQuerySerializer],responses=ContractSearchResponseSerializer)
     @action(detail=True,methods=['get'])
     def contracts(self,request,pk=None):
@@ -144,6 +158,14 @@ class RunViewSet(viewsets.GenericViewSet):
         return csv_response(rows,fields,f'{run.id}-cashflows.csv')
 
     @extend_schema(responses={(200,'text/csv'):OpenApiTypes.BINARY})
+    @action(detail=True,methods=['get'],url_path=r'behavioral-cashflows\.csv')
+    def behavioral_cashflows_csv(self,request,pk=None):
+        run=self.ready_run()
+        fields=list(BehavioralCashFlowSerializer().fields)
+        rows=(BehavioralCashFlowSerializer(flow).data for flow in run.behavioral_cashflows.iterator(chunk_size=1000))
+        return csv_response(rows,fields,f'{run.id}-behavioral-cashflows.csv')
+
+    @extend_schema(responses={(200,'text/csv'):OpenApiTypes.BINARY})
     @action(detail=True,methods=['get'],url_path=r'summary\.csv')
     def summary_csv(self,request,pk=None):
         run=self.ready_run()
@@ -156,7 +178,7 @@ class RunViewSet(viewsets.GenericViewSet):
     def result_json(self,request,pk=None):
         run=self.ready_run()
         # Small-scale prototype export; use streaming columnar output for full bank workloads.
-        data=dict(run.result_summary,cashflows=CashFlowSerializer(run.cashflows.all(),many=True).data)
+        data=dict(run.result_summary,cashflows=CashFlowSerializer(run.cashflows.all(),many=True).data,behavioral_cashflows=BehavioralCashFlowSerializer(run.behavioral_cashflows.all(),many=True).data)
         response=Response(data)
         response['Content-Disposition']=f'attachment; filename="{run.id}.json"'
         return response

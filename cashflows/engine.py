@@ -4,20 +4,20 @@ from calendar import monthrange
 from decimal import Decimal, localcontext, ROUND_HALF_UP
 import re
 
-VERSION = '0.5.0'
+VERSION = '0.7.0'
 MAX_CONTRACTS = 2000
 MAX_PERIODS = 1200
 D = Decimal
 PRODUCTS = {'loan': 'inflow', 'bond': 'inflow', 'interbank_asset': 'inflow', 'cash_central_bank': 'inflow',
-            'term_deposit': 'outflow', 'borrowing': 'outflow', 'demand_deposit': 'outflow',
-            'undrawn_commitment': 'outflow', 'undrawn_uncommitted': 'outflow', 'trade_finance': 'outflow'}
+            'term_deposit': 'outflow', 'borrowing': 'outflow', 'demand_deposit': 'outflow'}
 PRECISION = {'JOD': D('.001'), 'USD': D('.01'), 'EUR': D('.01'), 'GBP': D('.01')}
 DEFAULT_BUCKETS = [1, 7, 14, 30, 60, 90, 180, 270, 365, 730, 1095, 1825]
 REQUIRED = {'contract_id', 'product', 'currency', 'principal'}
 OPTIONAL = {'annual_rate', 'rate_type', 'repayment', 'day_count', 'frequency_months',
             'accrual_start', 'next_payment', 'maturity', 'end_of_month', 'status',
             'interest_rate_index', 'client_rate_spread', 'rate_cap', 'rate_floor',
-            'liquidity_product', 'liquidity_group'}
+            'liquidity_product', 'liquidity_group', 'counterparty', 'counterparty_group',
+            'funding_source', 'liquidity_buffer_class', 'encumbered', 'liquidity_haircut'}
 
 
 def decimal(value, name):
@@ -59,7 +59,7 @@ def year_fraction(start, end, convention):
 def validate_config(payload):
     if not isinstance(payload, dict):
         raise ValueError('Request must be a JSON object')
-    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve', 'calculation_basis', 'behavioral_assumption_set'}
+    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve', 'calculation_basis', 'behavioral_assumption_set', 'product_treatments'}
     if unknown:
         raise ValueError('Unknown request fields: ' + ', '.join(sorted(unknown)))
     asof = parse_date(payload.get('as_of_date'), 'as_of_date')
@@ -138,16 +138,22 @@ def schedule(contract, asof, settings=None):
         base['liquidity_product'] = str(contract['liquidity_product'])
     if contract.get('liquidity_group'):
         base['liquidity_group'] = str(contract['liquidity_group'])
-    if product in ('demand_deposit', 'cash_central_bank', 'undrawn_commitment', 'undrawn_uncommitted', 'trade_finance'):
+    for field in ('counterparty', 'counterparty_group', 'funding_source', 'liquidity_buffer_class'):
+        if contract.get(field): base[field] = str(contract[field])
+    if 'encumbered' in contract:
+        if type(contract['encumbered']) is not bool: raise ValueError('encumbered must be true or false')
+        base['encumbered'] = contract['encumbered']
+    if 'liquidity_haircut' in contract:
+        haircut = decimal(contract['liquidity_haircut'], 'liquidity_haircut')
+        if not D(0) <= haircut <= D(1): raise ValueError('liquidity_haircut must be between 0 and 1')
+        base['liquidity_haircut'] = str(haircut)
+    if product in ('demand_deposit', 'cash_central_bank'):
         if set(contract) & {'annual_rate', 'repayment', 'day_count', 'frequency_months',
                             'accrual_start', 'next_payment', 'maturity', 'end_of_month'}:
             raise ValueError('Undated demand deposits accept balance fields only; dated terms need separate rules')
         if product == 'demand_deposit':
             return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
                               'reason': 'Open maturity: separately disclosed; no invented withdrawal date or interest schedule'}
-        if product in ('undrawn_commitment', 'undrawn_uncommitted', 'trade_finance'):
-            return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
-                              'reason': 'Undrawn approved facility: open maturity until an approved drawdown rule is selected'}
         return base, [], {'contract_id': cid, 'product': product, 'direction': base['direction'], 'currency': currency, 'balance': base['principal'], 'liquidity_product': base.get('liquidity_product', ''), 'liquidity_group': base.get('liquidity_group', ''),
                           'reason': 'Cash and central-bank position: separately disclosed as counterbalancing capacity'}
     needed = {'annual_rate', 'repayment', 'day_count', 'frequency_months', 'accrual_start', 'next_payment', 'maturity'}
@@ -250,33 +256,38 @@ def calculate(payload, progress=None):
                                    'error': str(exc) or 'Invalid contract terms'})
             if progress and ((index+1) % 25 == 0 or index+1 == len(contracts)):
                 progress(index+1, len(contracts))
-        labels = []
-        lower = 1
-        for upper in buckets:
-            labels.append(f'{upper} day' if lower == upper else f'{lower}–{upper} days')
-            lower = upper + 1
-        labels.append(f'>{buckets[-1]} days')
-        summaries = {}
+        def build_summary(summary_flows):
+            labels = []
+            lower = 1
+            for upper in buckets:
+                labels.append(f'{upper} day' if lower == upper else f'{lower}–{upper} days')
+                lower = upper + 1
+            labels.append(f'>{buckets[-1]} days')
+            result = {}
+            summary_currencies = sorted({c['currency'] for c in accepted} | {f['currency'] for f in summary_flows})
+            for cur in summary_currencies:
+                result[cur] = [{'bucket': label, 'inflow_principal':D(0), 'inflow_interest':D(0),
+                    'outflow_principal':D(0), 'outflow_interest':D(0)} for label in labels]
+            for f in summary_flows:
+                k = next((i for i, upper in enumerate(buckets) if f['days_from_asof'] <= upper), len(buckets))
+                f['bucket'] = labels[k]
+                row = result[f['currency']][k]
+                row[f['direction']+'_principal'] += D(f['principal'])
+                row[f['direction']+'_interest'] += D(f['interest'])
+            for cur, rows in result.items():
+                cumulative = D(0)
+                for row in rows:
+                    row['inflows'] = row['inflow_principal'] + row['inflow_interest']
+                    row['outflows'] = row['outflow_principal'] + row['outflow_interest']
+                    row['net_gap'] = row['inflows'] - row['outflows']
+                    cumulative += row['net_gap']
+                    row['cumulative_gap'] = cumulative
+                    for key, val in list(row.items()):
+                        if isinstance(val, D): row[key] = str(val.quantize(PRECISION[cur]))
+            return result
+
+        summaries = build_summary(flows)
         currencies = sorted({c['currency'] for c in accepted})
-        for cur in currencies:
-            summaries[cur] = [{'bucket': label, 'inflow_principal':D(0), 'inflow_interest':D(0),
-                'outflow_principal':D(0), 'outflow_interest':D(0)} for label in labels]
-        for f in flows:
-            k = next((i for i, upper in enumerate(buckets) if f['days_from_asof'] <= upper),len(buckets))
-            f['bucket'] = labels[k]
-            row = summaries[f['currency']][k]
-            row[f['direction']+'_principal'] += D(f['principal'])
-            row[f['direction']+'_interest'] += D(f['interest'])
-        for cur, rows in summaries.items():
-            cumulative = D(0)
-            for row in rows:
-                row['inflows'] = row['inflow_principal']+row['inflow_interest']
-                row['outflows'] = row['outflow_principal']+row['outflow_interest']
-                row['net_gap'] = row['inflows']-row['outflows']
-                cumulative += row['net_gap']
-                row['cumulative_gap'] = cumulative
-                for key, val in list(row.items()):
-                    if isinstance(val,D): row[key] = str(val.quantize(PRECISION[cur]))
         controls = []
         for cur in currencies:
             scheduled = sum((D(c['principal']) for c in accepted if c['currency']==cur and c['product'] not in ('demand_deposit','cash_central_bank')),D(0))
@@ -286,21 +297,51 @@ def calculate(payload, progress=None):
                 'generated_principal':str(generated.quantize(PRECISION[cur])),
                 'difference':str((scheduled-generated).quantize(PRECISION[cur])),
                 'undated_balance':str(open_total.quantize(PRECISION[cur])), 'passed':scheduled==generated})
+
         from .reporting import build_bank_ladder
-        bank_ladder = {cur: build_bank_ladder(flows, undated, cur, PRECISION[cur]) for cur in currencies}
+        bank_ladder = {cur: build_bank_ladder(flows, undated, cur, PRECISION[cur], basis='contractual') for cur in currencies}
         behavioural = payload.get('behavioral_assumption_set')
-        behavioural_ladder = ({cur: build_bank_ladder(flows, undated, cur, PRECISION[cur], behavioural) for cur in currencies}
-                              if behavioural else {})
-        projection = payload.get('interest_projection', 'constant')
         basis = payload.get('calculation_basis', 'contractual')
+        behavioural_result = None
+        behavioural_flows = []
+        behavioural_ladder = {}
+        behavioural_summary = {}
+        if basis == 'behavioral' and behavioural:
+            from .behavioral_engine import generate_behavioral_cashflows
+            behavioural_result = generate_behavioral_cashflows(
+                flows, undated, asof, behavioural, PRECISION,
+                treatments=payload.get('product_treatments', []),
+            )
+            behavioural_reporting_flows = behavioural_result['flows']
+            behavioural_flows = behavioural_result.get('audit_flows', behavioural_reporting_flows)
+            behavioural_summary = build_summary(behavioural_reporting_flows)
+            behavioural_ladder = {
+                cur: build_bank_ladder(
+                    behavioural_reporting_flows, behavioural_result['undated'], cur, PRECISION[cur],
+                    capacity_events=behavioural_result['capacity_events'], basis='behavioral'
+                ) for cur in currencies
+            }
+
+        projection = payload.get('interest_projection', 'constant')
         behavioural_name = behavioural.get('name', 'saved behavioural assumptions') if behavioural else None
+        if basis == 'behavioral' and behavioural_name:
+            basis_text = f'Behavioural engine using {behavioural_name}'
+        elif basis == 'behavioral':
+            basis_text = 'Behavioural basis requested but no active assumption set was available'
+        else:
+            basis_text = 'Contractual'
         return {'engine_version':VERSION, 'as_of_date':asof.isoformat(),'entity':entity,
                 'bucket_days':buckets,'input_count':len(contracts),'accepted_count':len(accepted),
                 'rejected_count':len(exceptions),'cashflow_count':len(flows),
-                'currencies':currencies,'contracts':accepted,'cashflows':flows,'summary':summaries,
+                'behavioral_cashflow_count':len(behavioural_flows),
+                'currencies':currencies,'contracts':accepted,'cashflows':flows,
+                'behavioral_cashflows':behavioural_flows,
+                'summary':summaries, 'behavioral_summary':behavioural_summary,
                 'exceptions':exceptions,'undated':undated,'controls':controls,'bank_ladder':bank_ladder,
                 'behavioral_bank_ladder':behavioural_ladder, 'calculation_basis':basis,
+                'behavioral_engine': behavioural_result['stats'] if behavioural_result else None,
+                'behavioral_adjustments': behavioural_result['adjustments'] if behavioural_result else [],
                 'behavioral_assumption_set': ({k: behavioural[k] for k in ('id','name','version','effective_date','source') if k in behavioural} if behavioural else None),
                 'interest_projection':projection,
-                'basis':f'{"Behavioural view available using " + behavioural_name if behavioural else "Contractual"}; {"market forward curve" if projection == "forward_curve" else "current rates held constant"} for floating-rate interest; original currency; saved input snapshot',
+                'basis':f'{basis_text}; {"market forward curve" if projection == "forward_curve" else "current rates held constant"} for floating-rate interest; original currency; saved input snapshot',
                 'status':'failed_validation' if not accepted else ('completed_with_exceptions' if exceptions else 'completed')}
