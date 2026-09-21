@@ -1,6 +1,7 @@
 import {useMemo,useState} from 'react';
 import type {ReactNode} from 'react';
 import {useQuery} from '@tanstack/react-query';
+import {useNavigate} from 'react-router-dom';
 import {
   Alert,Box,Button,Card,Chip,Divider,FormControlLabel,MenuItem,Select,Stack,Switch,
   Table,TableBody,TableCell,TableHead,TableRow,ToggleButton,ToggleButtonGroup,Typography,
@@ -142,6 +143,7 @@ function Change({label,value,currency,invert=false}:{label:string;value:number;c
 
 export default function LiquidityAnalytics(){
   const {entity}=useWorkspace();
+  const navigate=useNavigate();
   const runs=useQuery({queryKey:['runs',entity?.slug],queryFn:()=>api.runs(entity!.slug),enabled:!!entity});
   const [chosenRunId,setChosenRunId]=useState('');
   const [chosenCurrency,setChosenCurrency]=useState('');
@@ -287,6 +289,6 @@ export default function LiquidityAnalytics(){
       ].map(([label,value,invert])=><Box flex={1} key={String(label)}><Change label={String(label)} value={Number(value)} currency={currency} invert={Boolean(invert)}/></Box>)}</Stack><Typography variant="caption" color="text.secondary">Compared with {currentRunLabel(comparisonCandidate)} in original currency. A higher cumulative position (less negative), a higher reported buffer, or lower short-term outflow pressure is displayed as an improvement.</Typography></Box>}
     </Card>
 
-    <Card sx={{p:2.3,bgcolor:'#F7F9FC',borderColor:'#E3EAF2'}}><Stack direction={{xs:'column',md:'row'}} gap={2} alignItems={{md:'center'}}><Box sx={{display:'flex',p:.85,borderRadius:1.8,bgcolor:'#E8EEF8',color:'#476487'}}><LayersRounded sx={{fontSize:18}}/></Box><Box flex={1}><Typography variant="subtitle2">Evidence remains one click away</Typography><Typography variant="body2" color="text.secondary" mt={.35}>This cockpit is a senior-management interpretation layer. Use the detailed maturity ladder, contract schedules and reconciliation controls to validate every number before action.</Typography></Box><Button variant="outlined" endIcon={<ArrowForwardRounded/>} href={`/results/${run.data.id}`}>Open detailed ladder</Button></Stack></Card>
+    <Card sx={{p:2.3,bgcolor:'#F7F9FC',borderColor:'#E3EAF2'}}><Stack direction={{xs:'column',md:'row'}} gap={2} alignItems={{md:'center'}}><Box sx={{display:'flex',p:.85,borderRadius:1.8,bgcolor:'#E8EEF8',color:'#476487'}}><LayersRounded sx={{fontSize:18}}/></Box><Box flex={1}><Typography variant="subtitle2">Evidence remains one click away</Typography><Typography variant="body2" color="text.secondary" mt={.35}>This cockpit is a senior-management interpretation layer. Use the detailed maturity ladder, contract schedules and reconciliation controls to validate every number before action.</Typography></Box><Button variant="outlined" endIcon={<ArrowForwardRounded/>} onClick={()=>navigate(`/results/${run.data.id}`)}>Open detailed ladder</Button></Stack></Card>
   </>;
 }
