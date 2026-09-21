@@ -100,6 +100,13 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  bucketProfile: (entity: string) =>
+    request<{ bucket_days: number[] }>(`/entities/${entity}/bucket-profile`),
+  saveBucketProfile: (entity: string, bucketDays: number[]) =>
+    request<{ bucket_days: number[] }>(`/entities/${entity}/bucket-profile`, {
+      method: "PUT",
+      body: JSON.stringify({ bucket_days: bucketDays }),
+    }),
   assumptions: (entity: string) =>
     request<LiquidityAssumptionSet>(`/entities/${entity}/assumptions`),
   productCatalogue: (entity: string) =>
