@@ -7,7 +7,7 @@ from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 from .engine import calculate, VERSION
-from .models import CalculationRun, CashFlow, BehavioralCashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumptionSet, ProductCatalogueItem
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumptionSet, ProductCatalogueItem
 
 logger=logging.getLogger(__name__)
 
@@ -35,14 +35,11 @@ def hydrate_run_payload(payload):
             'base_currency': config.entity.base_currency,
             'rules': [{'id':rule.pk, 'category':rule.category, 'title':rule.title, 'product_group':rule.product_group,
                 'product_type':rule.product_type, 'currency_scope':rule.currency_scope,
-                'maturity_breakdown':rule.maturity_breakdown, 'value':rule.value, 'enabled':rule.enabled,
-                'sort_order': rule.sort_order}
+                'maturity_breakdown':rule.maturity_breakdown, 'value':rule.value, 'enabled':rule.enabled}
                 for rule in assumption_set.rules.all()],
+            'product_treatments': [{'product_group':item.product_group,'product_type':item.product_type,
+                'treatment':item.cash_flow_treatment} for item in ProductCatalogueItem.objects.filter(entity=config.entity,active=True)],
         }
-    hydrated['product_treatments'] = [
-        {'product_group': item.product_group, 'product_type': item.product_type, 'cashflow_treatment': item.cashflow_treatment}
-        for item in ProductCatalogueItem.objects.filter(entity__slug=payload['entity'], active=True).only('product_group','product_type','cashflow_treatment')
-    ]
     return hydrated
 
 
@@ -94,7 +91,6 @@ def execute_run(run_id):
             CalculationRun.objects.filter(pk=run_id,status='running').update(progress=int(100*done/total),heartbeat=timezone.now())
         result=calculate(run.input_payload,progress)
         flows=result.pop('cashflows')
-        behavioral_flows=result.pop('behavioral_cashflows', [])
         contracts=result.pop('contracts')
         with transaction.atomic():
             # Mark-interrupted recovery is only used once the old worker has stopped.
@@ -107,20 +103,6 @@ def execute_run(run_id):
                 RunContract.objects.bulk_create([RunContract(run_id=run_id, contract_id=item['contract_id'],
                     contract_id_key=item['contract_id'].upper(), product=item['product'], currency=item['currency'],
                     direction=item['direction']) for item in contracts[start:start+1000]], batch_size=1000)
-            for start in range(0,len(behavioral_flows),1000):
-                BehavioralCashFlow.objects.bulk_create([
-                    BehavioralCashFlow(
-                        run_id=run_id, sequence=i,
-                        contract_id=flow['contract_id'], product=flow['product'],
-                        liquidity_product=flow.get('liquidity_product',''), liquidity_group=flow.get('liquidity_group',''),
-                        currency=flow['currency'], direction=flow['direction'], payment_date=flow['payment_date'],
-                        accrual_start=flow['accrual_start'], accrual_end=flow['accrual_end'], days_from_asof=flow['days_from_asof'],
-                        principal=flow['principal'], interest=flow['interest'], total=flow['total'],
-                        remaining_principal=flow['remaining_principal'], bucket=flow.get('bucket',''),
-                        behavioral_source=flow.get('behavioral_source','contractual'),
-                        behavioral_rule_id=flow.get('behavioral_rule_id'), behavioral_rule_title=flow.get('behavioral_rule_title',''),
-                    ) for i,flow in enumerate(behavioral_flows[start:start+1000],start)
-                ], batch_size=1000)
             current.result_summary=result
             current.status=result['status']
             current.progress=100

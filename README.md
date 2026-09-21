@@ -1,67 +1,29 @@
-# Liquidity Cash Flow MVP — Behavioural Engine Experimental Build
+# Liquidity Cash Flow MVP
 
-Complete local Django + React/TypeScript Liquidity MVP with contractual and behavioural cash-flow views. Engine version: **0.6.0**.
+Local Django + React/TypeScript prototype for contractual liquidity cash-flow reporting.
 
-## Fastest way to run on macOS
-
-Double-click `START_MVP.command`, or open Terminal in this folder and run:
+## Run locally
 
 ```bash
-./START_MVP.command
-```
-
-The launcher will automatically:
-
-- create `.venv` if needed;
-- install the pinned Python requirements;
-- install npm dependencies when needed;
-- rebuild the React frontend when frontend source changes;
-- run Django migrations;
-- ask you to create a local administrator on first use;
-- seed/preserve the synthetic Jordan demo;
-- start Django and the local calculation worker;
-- open `http://127.0.0.1:8000/`.
-
-`start_mac.command` continues to work as well and uses the same launcher logic.
-
-## Behavioural cash-flow engine
-
-The experimental behavioural engine supports:
-
-- Contractual / Behavioural / Hybrid product treatment;
-- NMD runoff curves and explicit residual/core balance;
-- loan prepayment curves;
-- term-deposit early withdrawal and rollover;
-- security liquidation timing and haircut;
-- persisted behavioural cash-flow events;
-- contractual vs behavioural ladder and profile comparison;
-- contract-level audit view showing behavioural source/rule;
-- versioned saved behavioural assumptions.
-
-See `BEHAVIORAL_ENGINE_V1.md` for methodology, validation and current limitations.
-
-## Manual development commands
-
-Backend:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python manage.py migrate
-python manage.py runlocal
+DEMO_PASSWORD='choose-a-local-demo-password' python manage.py seed_demo --username demo --create-user --replace
+python manage.py runserver
 ```
 
-Frontend build after editing React/TypeScript:
+Open `http://127.0.0.1:8000`. The bundled `Jordan-Mock` entity contains annual-report-aligned but fully synthetic data for testing: JOD/USD lending, deposits, placements, funding and counterbalancing cash.
+Choose a local-only demo password before creating the `demo` user. For a deployed demo, set `DEMO_PASSWORD` as a hosting-platform secret.
+
+## Public mock demo
+
+The Render deployment uses synthetic data only and serves the app publicly over HTTPS. It uses inline calculation execution for the small demo workload; production deployment should use PostgreSQL and a separate worker.
+
+For frontend development:
 
 ```bash
 cd frontend
-npm ci
-npm run build
+npm install
+npm run dev
 ```
 
-The Vite build writes the production bundle to `static/app`, which Django serves.
-
-## Experimental LCR & NSFR source-data engine
-
-This local build includes a new **LCR & NSFR** module in the left navigation. It calculates directly from the saved portfolio, persists contract-level regulatory contributions, provides line drill-down and exports a combined Excel workbook. See `REGULATORY_ENGINE_V1.md` for scope and methodology boundaries.
+The packaged Django app already includes a production frontend build in `static/app`.
