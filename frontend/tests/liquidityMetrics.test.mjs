@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {buildLiquidityProfile,bucketMovement,comparableBucket,lineContributors,liquidityCsv} from '../src/liquidityMetrics.ts';
 
-function ladder({inflows=[120,0],outflows=[80,100],off=[20,20],capacity=[30,0],interest=0}={}){
+function ladder({inflows=[120,0],outflows=[80,100],off=[20,20],capacity=[30,0],interest=0,outflowBalance=1000,offBalance=200}={}){
  const rows=[];
- const add=(key,section,principal,kind='subtotal',children=[])=>rows.push({key,section,label:key,kind,balance:'0',principal:principal.map(String),interest:[String(interest),String(interest)],total:principal.map(value=>String(value+interest)),children});
+ const add=(key,section,principal,kind='subtotal',children=[],balance='0')=>rows.push({key,section,label:key,kind,balance:String(balance),principal:principal.map(String),interest:[String(interest),String(interest)],total:principal.map(value=>String(value+interest)),children});
  add('retail_time_out','outflows',outflows,'normal',[{key:'retail_time_out:fixed',label:'Fixed',balance:'100',principal:outflows.map(String),interest:['0','0'],total:outflows.map(String)}]);
  add('total_inflows','inflows',inflows);
- add('total_outflows','outflows',outflows);
- add('total_off_balance_sheet','off_balance_sheet',off);
+ add('total_outflows','outflows',outflows,'subtotal',[],outflowBalance);
+ add('total_off_balance_sheet','off_balance_sheet',off,'subtotal',[],offBalance);
  add('total_counterbalancing_capacity','counterbalancing_capacity',capacity);
  const before=inflows.map((amount,index)=>amount-outflows[index]-off[index]);
  const after=before.map((amount,index)=>amount+capacity[index]);
@@ -19,17 +19,17 @@ function ladder({inflows=[120,0],outflows=[80,100],off=[20,20],capacity=[30,0],i
  return {buckets:[{code:'overnight',label:'Overnight'},{code:'1w',label:'1w'}],rows};
 }
 
-test('management cushion includes off-balance-sheet obligations and capacity, without double counting',()=>{
+test('principal gap ratio uses signed as-of outflow and off-balance-sheet balances',()=>{
  const profile=buildLiquidityProfile(ladder(),'principal');
  assert.equal(profile.reconciled,true);
  assert.deepEqual(profile.buckets.map(point=>point.gapAfter),[50,-120]);
  assert.deepEqual(profile.buckets.map(point=>point.cumulativeAfter),[50,-70]);
- assert.equal(profile.buckets[0].cushionPercent,50);
+ assert.ok(Math.abs(profile.buckets[0].cushionPercent-(50/1200*100))<1e-10);
  assert.ok(lineContributors(profile.ladder,1,'principal').some(line=>line.key==='retail_time_out'&&line.childrenInBucket[0].label==='Fixed'));
 });
 
 test('zero obligations yield N/A and principal+interest is independent from as-of balance',()=>{
- const none=buildLiquidityProfile(ladder({outflows:[0,0],off:[0,0]}),'principal');
+ const none=buildLiquidityProfile(ladder({outflows:[0,0],off:[0,0],outflowBalance:0,offBalance:0}),'principal');
  assert.equal(none.buckets[0].cushionPercent,null);
  const withInterest=buildLiquidityProfile(ladder({interest:1}),'total');
  assert.equal(withInterest.capacityBalance,0);
@@ -46,11 +46,11 @@ test('prior run comparison only accepts matching bucket configurations and recon
  assert.equal(comparableBucket(current,prior,'overnight'),null);
 });
 
-test('ladder mismatch is flagged and exported CSV distinguishes cushion from regulatory LCR',()=>{
+test('ladder mismatch is flagged and exported CSV distinguishes the gap ratio from regulatory LCR',()=>{
  const altered=ladder();
  altered.rows.find(row=>row.key==='contractual_gap_including_capacity').principal[0]='999';
  const profile=buildLiquidityProfile(altered,'principal');
  assert.equal(profile.reconciled,false);
- assert.match(liquidityCsv(profile,'JOD','contractual','principal','2026-09-21'),/Bucket cushion % \(not LCR\)/);
+ assert.match(liquidityCsv(profile,'JOD','contractual','principal','2026-09-21'),/Principal gap ratio \/ signed as-of outflow balance % \(not LCR\)/);
  assert.equal(buildLiquidityProfile({buckets:altered.buckets,rows:[]},'principal'),null);
 });

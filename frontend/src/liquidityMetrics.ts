@@ -44,6 +44,10 @@ export function buildLiquidityProfile(ladder: BankLadder | undefined, mode: Cash
   if (required.some(key => !byKey.get(key)?.[mode] || byKey.get(key)![mode].length !== ladder.buckets.length)) return null;
   const cell = (key: string, index: number) => amount(byKey.get(key)![mode][index]);
   let cumulativeBefore = 0, cumulativeAfter = 0, reconciled = true;
+  // The balance-based gap ratio is deliberately principal-only. It compares
+  // each maturity-bucket gap with the current stock of outflow obligations;
+  // off-balance-sheet is kept signed as supplied in the ladder.
+  const balanceDenominator = amount(byKey.get('total_outflows')?.balance) + amount(byKey.get('total_off_balance_sheet')?.balance);
   const buckets = ladder.buckets.map((bucket, index) => {
     const inflows = cell('total_inflows', index);
     const outflows = cell('total_outflows', index);
@@ -57,13 +61,13 @@ export function buildLiquidityProfile(ladder: BankLadder | undefined, mode: Cash
         Math.abs(cell('contractual_gap_including_capacity', index) - gapAfter) > 0.05 ||
         Math.abs(cell('cumulative_contractual_gap', index) - cumulativeBefore) > 0.05 * (index + 1) ||
         Math.abs(cell('cumulative_gap_including_capacity', index) - cumulativeAfter) > 0.05 * (index + 1)) reconciled = false;
-    const obligations = outflows + offBalance;
     return {
       code: bucket.code, label: bucket.label, index,
       inflows, outflows, offBalance, capacity, gapBefore, gapAfter,
       cumulativeBefore, cumulativeAfter,
+      // Principal contractual gap including capacity / principal as-of obligations.
       // This is a management metric for one bucket, not regulatory LCR.
-      cushionPercent: obligations > 0 ? 100 * gapAfter / obligations : null,
+      cushionPercent: balanceDenominator > 0 ? 100 * cell('contractual_gap_including_capacity', index) / balanceDenominator : null,
     };
   });
   return {ladder, buckets, reconciled, capacityBalance: amount(byKey.get('total_counterbalancing_capacity')?.balance)};
@@ -115,7 +119,7 @@ export function liquidityCsv(profile: LiquidityProfile, currency: string, basis:
     ['Reporting date', asOfDate], ['Currency', currency], ['Basis', basis], ['Cash flow', mode],
     [],
     ['Bucket', 'Inflows', 'Outflows', 'Off-balance-sheet obligations', 'Counterbalancing capacity',
-      'Gap before capacity', 'Gap after capacity', 'Cumulative before capacity', 'Cumulative after capacity', 'Bucket cushion % (not LCR)'],
+      'Gap before capacity', 'Gap after capacity', 'Cumulative before capacity', 'Cumulative after capacity', 'Principal gap ratio / signed as-of outflow balance % (not LCR)'],
     ...profile.buckets.map(bucket => [bucket.label, bucket.inflows, bucket.outflows, bucket.offBalance, bucket.capacity,
       bucket.gapBefore, bucket.gapAfter, bucket.cumulativeBefore, bucket.cumulativeAfter, bucket.cushionPercent]),
   ];

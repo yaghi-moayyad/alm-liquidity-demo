@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -60,6 +61,7 @@ import type {
   RegulatoryDriverDetail,
   RegulatoryMovement,
 } from "../types";
+import { movementNarrative, movementSummary } from "../regulatoryNarrative";
 
 type Kind = "lcr" | "nsfr";
 
@@ -84,6 +86,8 @@ const config = {
 
 export default function RegulatoryReport({ kind }: { kind: Kind }) {
   const { entity } = useWorkspace();
+  const [searchParams] = useSearchParams();
+  const initialUrlDate = useRef(searchParams.get("as_of"));
   const [selected, setSelected] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [detailKey, setDetailKey] = useState("");
@@ -100,8 +104,10 @@ export default function RegulatoryReport({ kind }: { kind: Kind }) {
     enabled: !!entity,
   });
   useEffect(() => {
-    if (!selected && series.data?.points.length)
-      setSelected(series.data.points.at(-1)!.as_of_date);
+    const requested=initialUrlDate.current;
+    const exists=requested&&series.data?.points.some(point=>point.as_of_date===requested);
+    if(exists) setSelected(requested!);
+    else if (!selected && series.data?.points.length) setSelected(series.data.points.at(-1)!.as_of_date);
   }, [selected, series.data]);
   const report = useQuery<NcrReport | NsfrReport>({
     queryKey: ["regulatory-report", entity?.slug, kind, selected],
@@ -169,6 +175,7 @@ export default function RegulatoryReport({ kind }: { kind: Kind }) {
       )
     ];
   const delta = first && previous ? first.ratio - previous.ratio : 0;
+  const selectedMovement=movementHistory.data?.movements.find(movement=>movement.as_of_date===selected);
 
   return (
     <>
@@ -356,6 +363,7 @@ export default function RegulatoryReport({ kind }: { kind: Kind }) {
               onInspect={setDetailKey}
             />
           </Box>
+          <MovementNarrativeCard kind={kind} movement={selectedMovement} currency={item.currency} entityName={entity?.name} onInspect={()=>setHistoryOpen(true)} />
           <MovementHistory
             kind={kind}
             items={movementHistory.data?.movements || []}
@@ -425,6 +433,16 @@ export default function RegulatoryReport({ kind }: { kind: Kind }) {
       />
     </>
   );
+}
+
+function MovementNarrativeCard({kind,movement,currency,entityName,onInspect}:{kind:Kind;movement?:RegulatoryMovement;currency:string;entityName?:string;onInspect:()=>void}){
+ const positive=Number(movement?.delta_pp||0)>=0;
+ return <Card sx={{mb:3,p:{xs:2.2,md:2.7},border:'1px solid #DCE6FA',background:'linear-gradient(110deg,#F7FAFF 0%,#FFFFFF 68%)'}}>
+  <Stack direction={{xs:'column',md:'row'}} gap={2} justifyContent="space-between" alignItems={{md:'center'}}>
+   <Box sx={{minWidth:0}}><Typography variant="overline" color="primary.main" fontWeight={800}>MONTH-ON-MONTH EXPLANATION</Typography><Typography variant="h6" fontWeight={750}>Why did {kind.toUpperCase()} move?</Typography><Typography variant="body2" color="text.secondary" mt={.7} sx={{lineHeight:1.65,maxWidth:980}}>{movementNarrative(kind,movement,currency,entityName)}</Typography></Box>
+   <Stack gap={.8} alignItems={{md:'end'}} sx={{minWidth:{md:180}}}><Chip label={movement?movementSummary(kind,movement,currency):'No comparison'} color={positive?'success':'error'} variant="outlined"/><Button size="small" endIcon={<HistoryRounded/>} onClick={onInspect}>Review all periods</Button></Stack>
+  </Stack>
+ </Card>;
 }
 
 function Metric({
