@@ -53,12 +53,11 @@ class LiquidityAssumptionSet(models.Model):
 class LiquidityAssumption(models.Model):
     class Category(models.TextChoices):
         DEPOSIT_RUNOFF = 'deposit_runoff', 'Deposit runoff'
-        TERM_DEPOSIT_EARLY_WITHDRAWAL = 'term_deposit_early_withdrawal', 'Term-deposit early withdrawal'
-        LOAN_PREPAYMENT = 'loan_prepayment', 'Loan prepayment'
-        FACILITY_DRAWDOWN = 'facility_drawdown', 'Approved facility drawdown'
-        ROLLOVER = 'rollover', 'Rollover / renewal'
         SECURITY_LIQUIDATION = 'security_liquidation', 'Security liquidation'
         SECURITY_HAIRCUT = 'security_haircut', 'Security haircut'
+        LOAN_PREPAYMENT = 'loan_prepayment', 'Loan prepayment'
+        TERM_DEPOSIT_EARLY_WITHDRAWAL = 'term_deposit_early_withdrawal', 'Term-deposit early withdrawal'
+        TERM_DEPOSIT_ROLLOVER = 'term_deposit_rollover', 'Term-deposit rollover'
 
     assumption_set = models.ForeignKey(LiquidityAssumptionSet, on_delete=models.CASCADE, related_name='rules')
     category = models.CharField(max_length=32, choices=Category.choices)
@@ -83,17 +82,16 @@ class LiquidityAssumption(models.Model):
 class ProductCatalogueItem(models.Model):
     """Governed product and GL mapping. GLs stay in administration, not end-user APIs."""
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='product_catalogue')
-    classification = models.CharField(max_length=32)  # Asset, Liability, OffBalanceSheet
-    product_group = models.CharField(max_length=96)
-    product_type = models.CharField(max_length=96)
-    general_ledger = models.TextField()
-    class CashFlowTreatment(models.TextChoices):
+    class CashflowTreatment(models.TextChoices):
         CONTRACTUAL = 'contractual', 'Contractual'
         BEHAVIORAL = 'behavioral', 'Behavioural'
         HYBRID = 'hybrid', 'Hybrid'
-        EXCLUDED = 'excluded', 'Excluded'
-    cash_flow_treatment = models.CharField(max_length=16, choices=CashFlowTreatment.choices, default=CashFlowTreatment.CONTRACTUAL)
-    treatment_note = models.CharField(max_length=240, blank=True)
+
+    classification = models.CharField(max_length=32)  # Asset, Liability, OffBalanceSheet
+    product_group = models.CharField(max_length=96)
+    product_type = models.CharField(max_length=96)
+    cashflow_treatment = models.CharField(max_length=16, choices=CashflowTreatment.choices, default=CashflowTreatment.CONTRACTUAL)
+    general_ledger = models.TextField()
     is_temporary_gl = models.BooleanField(default=False)
     source = models.CharField(max_length=160, default='Jordan Product mapping workbook')
     active = models.BooleanField(default=True)
@@ -106,58 +104,6 @@ class ProductCatalogueItem(models.Model):
 
     def __str__(self):
         return f'{self.product_group} · {self.product_type}'
-
-
-class RegulatorySourcePosition(models.Model):
-    """Canonical source record for regulatory liquidity calculations."""
-    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='regulatory_positions')
-    external_id = models.CharField(max_length=64)
-    gl_code = models.CharField(max_length=96)
-    product_group = models.CharField(max_length=96)
-    product_type = models.CharField(max_length=96)
-    currency = models.CharField(max_length=3)
-    balance = models.DecimalField(max_digits=24, decimal_places=3)
-    lcr_category = models.CharField(max_length=64)
-    lcr_factor = models.DecimalField(max_digits=8, decimal_places=6)
-    lcr_direction = models.CharField(max_length=12)  # hqla, outflow, inflow
-    hqla_level = models.CharField(max_length=8, blank=True)
-    active = models.BooleanField(default=True)
-    updated = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['lcr_direction', 'lcr_category', 'external_id']
-        constraints = [models.UniqueConstraint(fields=['entity', 'external_id'], name='unique_entity_regulatory_position')]
-
-
-class RegulatorySnapshot(models.Model):
-    """Immutable month-end mapped source data and calculated regulatory results."""
-    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='regulatory_snapshots')
-    as_of_date = models.DateField()
-    source = models.CharField(max_length=160, default='Mapped regulatory source positions')
-    is_mock = models.BooleanField(default=False)
-    source_data = models.JSONField(default=dict)
-    created = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-as_of_date']
-        constraints = [models.UniqueConstraint(fields=['entity', 'as_of_date'], name='unique_entity_regulatory_snapshot')]
-
-class LcrStressConfiguration(models.Model):
-    """Entity-scoped persisted legacy LCR stress scenario library."""
-    entity = models.OneToOneField(Entity, on_delete=models.CASCADE, related_name='lcr_stress_configuration')
-    configuration = models.JSONField(default=dict)
-    top_depositor_amounts = models.JSONField(default=dict)
-    updated = models.DateTimeField(auto_now=True)
-
-class LcrStressRun(models.Model):
-    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='lcr_stress_runs')
-    as_of_date = models.DateField()
-    configuration = models.JSONField(default=dict)
-    results = models.JSONField(default=dict)
-    created = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-created']
 
 class PortfolioContract(models.Model):
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='portfolio_contracts')
@@ -243,3 +189,96 @@ class CashFlow(models.Model):
         constraints = [models.UniqueConstraint(fields=['run','sequence'], name='unique_run_flow_sequence')]
         indexes = [models.Index(fields=['run','contract_id'], name='flow_run_contract_idx'),
                    models.Index(fields=['run','currency','payment_date'], name='flow_run_currency_date_idx')]
+
+
+class BehavioralCashFlow(models.Model):
+    """Behavioural cash-flow event generated from the saved contractual snapshot."""
+    run = models.ForeignKey(CalculationRun, on_delete=models.CASCADE, related_name='behavioral_cashflows')
+    sequence = models.PositiveIntegerField()
+    contract_id = models.CharField(max_length=64)
+    product = models.CharField(max_length=32)
+    liquidity_product = models.CharField(max_length=96, blank=True)
+    liquidity_group = models.CharField(max_length=96, blank=True)
+    currency = models.CharField(max_length=3)
+    direction = models.CharField(max_length=8)
+    payment_date = models.DateField()
+    accrual_start = models.DateField()
+    accrual_end = models.DateField()
+    days_from_asof = models.PositiveIntegerField()
+    principal = models.DecimalField(max_digits=24, decimal_places=3)
+    interest = models.DecimalField(max_digits=24, decimal_places=3)
+    total = models.DecimalField(max_digits=24, decimal_places=3)
+    remaining_principal = models.DecimalField(max_digits=24, decimal_places=3)
+    bucket = models.CharField(max_length=64, blank=True)
+    behavioral_source = models.CharField(max_length=48, blank=True)
+    behavioral_rule_id = models.PositiveIntegerField(null=True, blank=True)
+    behavioral_rule_title = models.CharField(max_length=160, blank=True)
+
+    class Meta:
+        ordering = ['sequence']
+        constraints = [models.UniqueConstraint(fields=['run','sequence'], name='unique_run_behavioral_flow_sequence')]
+        indexes = [models.Index(fields=['run','contract_id'], name='bflow_run_contract_idx'),
+                   models.Index(fields=['run','currency','payment_date'], name='bflow_run_currency_date_idx')]
+
+class RegulatoryConfiguration(models.Model):
+    entity = models.OneToOneField(Entity, on_delete=models.CASCADE, related_name='regulatory_configuration')
+    reporting_currency = models.CharField(max_length=3, default='JOD')
+    fx_to_reporting = models.JSONField(default=dict)
+    lcr_inflow_cap = models.DecimalField(max_digits=5, decimal_places=4, default=0.75)
+    methodology_name = models.CharField(max_length=160, default='Configurable LCR/NSFR methodology')
+    methodology_version = models.CharField(max_length=32, default='draft-1')
+    updated = models.DateTimeField(auto_now=True)
+
+
+class RegulatoryMapping(models.Model):
+    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='regulatory_mappings')
+    source_product = models.CharField(max_length=64)
+    liquidity_group = models.CharField(max_length=96, blank=True)
+    liquidity_product = models.CharField(max_length=96, blank=True)
+    title = models.CharField(max_length=160)
+    lcr_treatment = models.JSONField(default=dict)
+    nsfr_treatment = models.JSONField(default=dict)
+    source = models.CharField(max_length=180, default='Regulatory mapping layer')
+    active = models.BooleanField(default=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['source_product']
+        constraints = [models.UniqueConstraint(fields=['entity','source_product','liquidity_group','liquidity_product'], name='unique_entity_regulatory_product')]
+
+
+class RegulatoryCalculation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    entity = models.ForeignKey(Entity, on_delete=models.PROTECT, related_name='regulatory_calculations')
+    as_of_date = models.DateField()
+    created = models.DateTimeField(auto_now_add=True)
+    engine_version = models.CharField(max_length=32)
+    methodology_version = models.CharField(max_length=32, blank=True)
+    status = models.CharField(max_length=24, default='completed')
+    lcr_result = models.JSONField(default=dict)
+    nsfr_result = models.JSONField(default=dict)
+    controls = models.JSONField(default=dict)
+    warnings = models.JSONField(default=list)
+
+    class Meta:
+        ordering = ['-created']
+
+
+class RegulatoryContribution(models.Model):
+    calculation = models.ForeignKey(RegulatoryCalculation, on_delete=models.CASCADE, related_name='contributions')
+    metric = models.CharField(max_length=8)
+    contract_id = models.CharField(max_length=64)
+    product = models.CharField(max_length=64)
+    currency = models.CharField(max_length=3)
+    source_balance = models.DecimalField(max_digits=24, decimal_places=3)
+    category_code = models.CharField(max_length=80)
+    category_label = models.CharField(max_length=180)
+    factor = models.DecimalField(max_digits=10, decimal_places=6)
+    weighted_amount = models.DecimalField(max_digits=24, decimal_places=3)
+    maturity_band = models.CharField(max_length=16, blank=True)
+    treatment = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ['metric','category_code','contract_id']
+        indexes = [models.Index(fields=['calculation','metric','category_code'], name='reg_calc_metric_line_idx')]

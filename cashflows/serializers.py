@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from .engine import validate_config, MAX_CONTRACTS, DEFAULT_BUCKETS, PRECISION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumption, LiquidityAssumptionSet, ProductCatalogueItem
+from .models import CalculationRun, CashFlow, BehavioralCashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumption, LiquidityAssumptionSet, ProductCatalogueItem
 
 class RunInputSerializer(serializers.Serializer):
     entity = serializers.SlugField(max_length=64)
@@ -70,6 +70,22 @@ class FlowPageSerializer(serializers.Serializer):
     limit=serializers.IntegerField()
     cashflows=CashFlowSerializer(many=True)
 
+class BehavioralCashFlowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=BehavioralCashFlow
+        exclude=['id','run','sequence']
+    def to_representation(self,instance):
+        data=super().to_representation(instance)
+        for k in ['principal','interest','total','remaining_principal']:
+            data[k]=str(Decimal(data[k]).quantize(PRECISION[data['currency']]))
+        return data
+
+class BehavioralFlowPageSerializer(serializers.Serializer):
+    total=serializers.IntegerField()
+    offset=serializers.IntegerField()
+    limit=serializers.IntegerField()
+    cashflows=BehavioralCashFlowSerializer(many=True)
+
 class RunPageSerializer(serializers.Serializer):
     runs=RunListSerializer(many=True)
 
@@ -125,38 +141,64 @@ class EntitySettingsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'forward_curve':'Add at least one curve point before using the market forward curve.'})
         return attrs
 
+class BucketProfileSerializer(serializers.ModelSerializer):
+    """A controlled, entity-level default used by every new calculation."""
+    bucket_days=serializers.ListField(child=serializers.IntegerField(min_value=1,max_value=36500),min_length=1,max_length=30)
+    class Meta:
+        model=EntityConfiguration
+        fields=['bucket_days','revision','updated']
+        read_only_fields=['revision','updated']
+    def validate_bucket_days(self,value):
+        if value != sorted(set(value)):
+            raise serializers.ValidationError('Bucket boundaries must be unique and strictly increasing.')
+        return value
+
 class LiquidityAssumptionSerializer(serializers.ModelSerializer):
     class Meta:
         model=LiquidityAssumption
         fields=['id','category','title','product_group','product_type','currency_scope','maturity_breakdown','value','enabled','sort_order','updated']
         read_only_fields=['id','updated']
+
     def validate(self,attrs):
         category=attrs.get('category',self.instance.category if self.instance else None)
         value=attrs.get('value',self.instance.value if self.instance else {})
-        curve_categories={'deposit_runoff','term_deposit_early_withdrawal','loan_prepayment','facility_drawdown'}
-        if category in curve_categories:
-            points=value.get('curve') if isinstance(value,dict) else None
+        if not isinstance(value,dict):
+            raise serializers.ValidationError({'value':'Assumption value must be an object.'})
+        if attrs.get('currency_scope', self.instance.currency_scope if self.instance else 'ALL') not in ('ALL','LCY','FCY'):
+            raise serializers.ValidationError({'currency_scope':'Choose ALL, LCY or FCY.'})
+
+        if category in ('deposit_runoff','loan_prepayment','term_deposit_early_withdrawal'):
+            points=value.get('curve')
             if not isinstance(points,list) or not points:
-                raise serializers.ValidationError({'value':'Add at least one cumulative curve point.'})
-            previous=-1; days_seen=set()
+                raise serializers.ValidationError({'value':'Add at least one cumulative behavioural curve point.'})
+            previous=Decimal('-1'); days_seen=set()
             for point in points:
-                try: days=int(point['days']); cumulative=Decimal(str(point['cumulative']))
-                except (KeyError,TypeError,ValueError): raise serializers.ValidationError({'value':'Every curve point needs numeric days and cumulative percentage.'})
-                if days < 1 or days in days_seen: raise serializers.ValidationError({'value':'Curve days must be positive and unique.'})
+                try:
+                    days=int(point['days']); cumulative=Decimal(str(point['cumulative']))
+                except (KeyError,TypeError,ValueError):
+                    raise serializers.ValidationError({'value':'Every curve point needs numeric days and cumulative percentage.'})
+                if days < 1 or days in days_seen:
+                    raise serializers.ValidationError({'value':'Curve days must be positive and unique.'})
                 if not Decimal('0') <= cumulative <= Decimal('1') or cumulative < previous:
-                    raise serializers.ValidationError({'value':'Cumulative percentages must increase from 0% to 100%.'})
+                    raise serializers.ValidationError({'value':'Cumulative percentages must be non-decreasing and between 0% and 100%.'})
                 days_seen.add(days); previous=cumulative
+        elif category=='term_deposit_rollover':
+            try:
+                rate=Decimal(str(value.get('rollover_rate'))); tenor=int(value.get('tenor_days'))
+            except (TypeError,ValueError):
+                raise serializers.ValidationError({'value':'Rollover needs a numeric rate and tenor in days.'})
+            if not Decimal('0') <= rate <= Decimal('1'):
+                raise serializers.ValidationError({'value':'Rollover rate must be between 0% and 100%.'})
+            if not 1 <= tenor <= 36500:
+                raise serializers.ValidationError({'value':'Rollover tenor must be between 1 and 36,500 days.'})
         elif category=='security_haircut':
             try: haircut=Decimal(str(value.get('haircut')))
-            except (AttributeError,TypeError,ValueError): raise serializers.ValidationError({'value':'Enter a numeric haircut.'})
+            except (TypeError,ValueError): raise serializers.ValidationError({'value':'Haircut must be numeric.'})
             if not Decimal('0') <= haircut <= Decimal('1'):
                 raise serializers.ValidationError({'value':'Haircut must be between 0% and 100%.'})
-        elif category=='rollover':
-            try:
-                rate=Decimal(str(value.get('rollover_rate'))); days=int(value.get('rollover_days'))
-            except (AttributeError,TypeError,ValueError): raise serializers.ValidationError({'value':'Enter a rollover rate and whole-number renewal days.'})
-            if not Decimal('0') <= rate <= Decimal('1') or not 1 <= days <= 36500:
-                raise serializers.ValidationError({'value':'Rollover rate must be 0%–100% and renewal days 1–36500.'})
+        elif category=='security_liquidation':
+            if value.get('timing') not in ('contractual','1d','1w','1w2w','1m','1y'):
+                raise serializers.ValidationError({'value':'Choose a supported liquidation timing.'})
         return attrs
 
 class LiquidityAssumptionSetSerializer(serializers.ModelSerializer):
@@ -170,12 +212,12 @@ class ProductCatalogueChoiceSerializer(serializers.ModelSerializer):
     """The GL is intentionally excluded from the application-facing catalogue."""
     class Meta:
         model=ProductCatalogueItem
-        fields=['id','classification','product_group','product_type','cash_flow_treatment','treatment_note']
+        fields=['id','classification','product_group','product_type','cashflow_treatment']
 
-class ProductTreatmentSerializer(serializers.ModelSerializer):
+class ProductCatalogueTreatmentSerializer(serializers.ModelSerializer):
     class Meta:
         model=ProductCatalogueItem
-        fields=['cash_flow_treatment','treatment_note']
+        fields=['cashflow_treatment']
 
 class PortfolioInputSerializer(RunInputSerializer):
     expected_revision=serializers.IntegerField(min_value=1)

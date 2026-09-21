@@ -1,22 +1,16 @@
-from copy import deepcopy
 from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
-from django.utils.dateparse import parse_date
-from django.http import HttpResponse
 from rest_framework import mixins,viewsets
 from rest_framework.permissions import BasePermission,SAFE_METHODS
 from rest_framework.decorators import action,api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError,APIException
 from drf_spectacular.utils import extend_schema,OpenApiTypes
-from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem,RegulatorySnapshot,LcrStressConfiguration,LcrStressRun
-from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
+from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem
+from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,BucketProfileSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductCatalogueTreatmentSerializer
 from .engine import DEFAULT_BUCKETS,calculate
 from .services import hydrate_run_payload
-from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers,regulatory_movement_history,regulatory_driver_detail
-from .regulatory_export import lcr_xlsx,nsfr_xlsx
-from .lcr_stress import default_configuration,normalise,calculate as calculate_lcr_stress,xlsx as lcr_stress_xlsx,DEFAULT_TOP,DEFAULTS
 
 class StaffWritePermission(BasePermission):
     def has_permission(self,request,view):
@@ -74,6 +68,17 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
             serializer.save()
         return Response(EntitySettingsSerializer(config).data)
 
+    @extend_schema(methods=['GET'],responses=BucketProfileSerializer)
+    @extend_schema(methods=['PUT'],request=BucketProfileSerializer,responses=BucketProfileSerializer)
+    @action(detail=True,methods=['get','put'],url_path='bucket-profile')
+    def bucket_profile(self,request,slug=None):
+        entity=self.get_object(); config=EntityConfiguration.objects.get(entity=entity)
+        if request.method=='PUT':
+            serializer=BucketProfileSerializer(config,data=request.data,partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(revision=config.revision+1)
+        return Response(BucketProfileSerializer(config).data)
+
     @extend_schema(methods=['GET'],responses=ProductCatalogueChoiceSerializer(many=True))
     @action(detail=True,methods=['get'],url_path='product-catalogue')
     def product_catalogue(self,request,slug=None):
@@ -83,149 +88,15 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
         items=ProductCatalogueItem.objects.filter(entity=entity,active=True)
         return Response(ProductCatalogueChoiceSerializer(items,many=True).data)
 
-    @extend_schema(methods=['PATCH'],request=ProductTreatmentSerializer,responses=ProductCatalogueChoiceSerializer)
+    @extend_schema(methods=['PATCH'],request=ProductCatalogueTreatmentSerializer,responses=ProductCatalogueChoiceSerializer)
     @action(detail=True,methods=['patch'],url_path=r'product-catalogue/(?P<item_id>[^/.]+)')
-    def product_catalogue_detail(self,request,slug=None,item_id=None):
+    def product_catalogue_treatment(self,request,slug=None,item_id=None):
         entity=self.get_object()
-        item=ProductCatalogueItem.objects.filter(entity=entity,pk=item_id).first()
-        if not item: raise ValidationError({'item_id':'Product catalogue item was not found for this entity.'})
-        serializer=ProductTreatmentSerializer(item,data=request.data,partial=True); serializer.is_valid(raise_exception=True); serializer.save()
+        item=ProductCatalogueItem.objects.filter(entity=entity,active=True,pk=item_id).first()
+        if not item: raise ValidationError({'item_id':'Product catalogue item was not found in this entity.'})
+        serializer=ProductCatalogueTreatmentSerializer(item,data=request.data,partial=True)
+        serializer.is_valid(raise_exception=True); serializer.save()
         return Response(ProductCatalogueChoiceSerializer(item).data)
-
-    @action(detail=True,methods=['get'],url_path='ncr-report')
-    def ncr_report(self,request,slug=None):
-        return Response(ncr_report(self.get_object()))
-
-    def _report_date(self, request):
-        raw=request.query_params.get('as_of')
-        if not raw: return None
-        value=parse_date(raw)
-        if not value: raise ValidationError({'as_of':'Use a date in YYYY-MM-DD format.'})
-        return value
-
-    @action(detail=True,methods=['get'],url_path='lcr-report')
-    def lcr_report(self,request,slug=None):
-        return Response(regulatory_report(self.get_object(),'lcr',self._report_date(request)))
-
-    @action(detail=True,methods=['get'],url_path='nsfr-report')
-    def nsfr_report(self,request,slug=None):
-        return Response(regulatory_report(self.get_object(),'nsfr',self._report_date(request)))
-
-    @action(detail=True,methods=['get'],url_path='regulatory-series')
-    def regulatory_series(self,request,slug=None):
-        report_type=request.query_params.get('report_type','lcr')
-        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
-        return Response({'report_type':report_type,'points':regulatory_series(self.get_object(),report_type)})
-
-    @action(detail=True,methods=['get'],url_path='regulatory-drivers')
-    def regulatory_drivers(self,request,slug=None):
-        report_type=request.query_params.get('report_type','lcr');as_of=self._report_date(request)
-        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
-        if not as_of:
-            snapshot=RegulatorySnapshot.objects.filter(entity=self.get_object()).first()
-            if not snapshot: raise ValidationError({'as_of':'No regulatory snapshot is available.'})
-            as_of=snapshot.as_of_date
-        return Response(regulatory_drivers(self.get_object(),report_type,as_of))
-
-    @action(detail=True,methods=['get'],url_path='regulatory-driver-detail')
-    def regulatory_driver_detail(self,request,slug=None):
-        report_type=request.query_params.get('report_type','lcr');as_of=self._report_date(request);detail_key=request.query_params.get('detail_key','')
-        allowed={'lcr':('hqla','net_cash_outflows'),'nsfr':('asf','rsf')}
-        if report_type not in allowed: raise ValidationError({'report_type':'Choose lcr or nsfr.'})
-        if detail_key not in allowed[report_type]: raise ValidationError({'detail_key':f'Choose one of: {", ".join(allowed[report_type])}.'})
-        if not as_of: raise ValidationError({'as_of':'Choose a month-end reporting date.'})
-        try:
-            return Response(regulatory_driver_detail(self.get_object(),report_type,as_of,detail_key))
-        except ValueError as error:
-            raise ValidationError({'detail_key':str(error)})
-
-    @action(detail=True,methods=['get'],url_path='regulatory-movement-history')
-    def regulatory_movement_history(self,request,slug=None):
-        report_type=request.query_params.get('report_type','lcr')
-        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
-        return Response({'report_type':report_type,'movements':regulatory_movement_history(self.get_object(),report_type)})
-
-    @action(detail=True,methods=['get'],url_path='regulatory-export')
-    def regulatory_export(self,request,slug=None):
-        report_type=request.query_params.get('report_type','lcr');entity=self.get_object();as_of=self._report_date(request)
-        if report_type not in ('lcr','nsfr'): raise ValidationError({'report_type':'Choose lcr or nsfr.'})
-        snapshot=RegulatorySnapshot.objects.filter(entity=entity,as_of_date=as_of).first() if as_of else RegulatorySnapshot.objects.filter(entity=entity).first()
-        if not snapshot: raise ValidationError('No regulatory snapshot is available for export.')
-        content=lcr_xlsx(regulatory_report(entity,'lcr',snapshot.as_of_date),snapshot.source_data.get('lcr_positions',[])) if report_type=='lcr' else nsfr_xlsx(snapshot.source_data.get('nsfr_lines',[]))
-        response=HttpResponse(content,content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition']=f'attachment; filename="{entity.slug}_{report_type}_{snapshot.as_of_date}.xlsx"'
-        return response
-
-    def _stress_config(self,entity):
-        config,created=LcrStressConfiguration.objects.get_or_create(entity=entity,defaults={'configuration':default_configuration(),'top_depositor_amounts':DEFAULT_TOP})
-        if created or not config.configuration:
-            config.configuration=normalise(config.configuration);config.save()
-        return config
-
-    @action(detail=True,methods=['get','put'],url_path='lcr-stress-config')
-    def lcr_stress_config(self,request,slug=None):
-        config=self._stress_config(self.get_object())
-        if request.method=='PUT':
-            payload=request.data if isinstance(request.data,dict) else {}
-            try:
-                config.configuration=normalise(payload.get('configuration'))
-                config.top_depositor_amounts=payload.get('top_depositor_amounts') or DEFAULT_TOP
-            except Exception as error: raise ValidationError({'configuration':str(error)})
-            config.save()
-        return Response({'configuration':config.configuration,'top_depositor_amounts':config.top_depositor_amounts,'updated':config.updated})
-
-    @action(detail=True,methods=['post'],url_path='lcr-stress-config/restore-default')
-    def lcr_stress_restore_default(self,request,slug=None):
-        """Restore one protected Central Bank scenario without changing other settings."""
-        scenario_id=request.data.get('scenario_id')
-        factory=next((item for item in DEFAULTS if item['id']==scenario_id),None)
-        if not factory: raise ValidationError({'scenario_id':'Choose a shipped Central Bank scenario.'})
-        config=self._stress_config(self.get_object())
-        replacement=deepcopy(factory);found=False;updated=[]
-        for scenario in config.configuration.get('scenarios',[]):
-            if scenario.get('id')==scenario_id:
-                updated.append(replacement);found=True
-            else: updated.append(scenario)
-        if not found: updated.append(replacement)
-        config.configuration={**config.configuration,'scenarios':updated};config.save()
-        return Response({'configuration':config.configuration,'top_depositor_amounts':config.top_depositor_amounts,'updated':config.updated})
-
-    @action(detail=True,methods=['get'],url_path='lcr-stress-preview')
-    def lcr_stress_preview(self,request,slug=None):
-        """Calculate the selected snapshot without creating a permanent stress-test run."""
-        entity=self.get_object();as_of=self._report_date(request)
-        snapshot=RegulatorySnapshot.objects.filter(entity=entity,as_of_date=as_of).first() if as_of else RegulatorySnapshot.objects.filter(entity=entity).first()
-        if not snapshot: raise ValidationError({'as_of':'No regulatory source snapshot is available.'})
-        config=self._stress_config(entity)
-        results=calculate_lcr_stress(entity,snapshot.as_of_date,snapshot.source_data.get('lcr_positions',[]),config.configuration,config.top_depositor_amounts)
-        return Response({'as_of_date':snapshot.as_of_date,'configuration':config.configuration,'results':results})
-
-    @action(detail=True,methods=['get','post'],url_path='lcr-stress-runs')
-    def lcr_stress_runs(self,request,slug=None):
-        entity=self.get_object()
-        if request.method=='GET':
-            return Response({'runs':[{'id':run.id,'as_of_date':run.as_of_date,'created':run.created,'baseline_lcr':run.results.get('baseline',{}).get('lcr'),'scenario_count':len(run.results.get('results',[]))} for run in LcrStressRun.objects.filter(entity=entity)[:25]]})
-        as_of=self._report_date(request)
-        snapshot=RegulatorySnapshot.objects.filter(entity=entity,as_of_date=as_of).first() if as_of else RegulatorySnapshot.objects.filter(entity=entity).first()
-        if not snapshot: raise ValidationError({'as_of':'No regulatory source snapshot is available.'})
-        config=self._stress_config(entity);results=calculate_lcr_stress(entity,snapshot.as_of_date,snapshot.source_data.get('lcr_positions',[]),config.configuration,config.top_depositor_amounts)
-        run=LcrStressRun.objects.create(entity=entity,as_of_date=snapshot.as_of_date,configuration={'configuration':config.configuration,'top_depositor_amounts':config.top_depositor_amounts},results=results)
-        return Response({'id':run.id,'as_of_date':run.as_of_date,'created':run.created,'results':run.results},status=201)
-
-    @action(detail=True,methods=['get'],url_path=r'lcr-stress-runs/(?P<run_id>[^/.]+)')
-    def lcr_stress_run(self,request,slug=None,run_id=None):
-        run=LcrStressRun.objects.filter(entity=self.get_object(),pk=run_id).first()
-        if not run: raise ValidationError({'run_id':'Stress-test run was not found.'})
-        return Response({'id':run.id,'as_of_date':run.as_of_date,'created':run.created,'configuration':run.configuration,'results':run.results})
-
-    @action(detail=True,methods=['get'],url_path=r'lcr-stress-runs/(?P<run_id>[^/.]+)/export')
-    def lcr_stress_export(self,request,slug=None,run_id=None):
-        run=LcrStressRun.objects.filter(entity=self.get_object(),pk=run_id).first()
-        if not run: raise ValidationError({'run_id':'Stress-test run was not found.'})
-        entity=self.get_object()
-        response=HttpResponse(lcr_stress_xlsx({'results':run.results},entity_name=entity.name,as_of_date=run.as_of_date),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition']=f'attachment; filename="{entity.slug}_lcr_stress_{run.as_of_date}.xlsx"'
-        return response
 
     def _assumption_set(self, entity):
         return LiquidityAssumptionSet.objects.prefetch_related('rules').filter(entity=entity,status='active').first()
