@@ -1,181 +1,194 @@
 {
-  "_AddRounded-CmmM1TJU.js": {
-    "file": "assets/AddRounded-CmmM1TJU.js",
+  "_AddRounded-DsyCBL5z.js": {
+    "file": "assets/AddRounded-DsyCBL5z.js",
     "name": "AddRounded",
     "imports": [
       "index.html"
     ]
   },
-  "_ArrowBackRounded-qryRhNAp.js": {
-    "file": "assets/ArrowBackRounded-qryRhNAp.js",
+  "_ArrowBackRounded-D01seoUT.js": {
+    "file": "assets/ArrowBackRounded-D01seoUT.js",
     "name": "ArrowBackRounded",
     "imports": [
       "index.html"
     ]
   },
-  "_Bar-BVv08mS3.js": {
-    "file": "assets/Bar-BVv08mS3.js",
+  "_Bar-BSqXfgzJ.js": {
+    "file": "assets/Bar-BSqXfgzJ.js",
     "name": "Bar",
     "imports": [
       "index.html",
-      "_CartesianChart-BNI3m3zX.js"
+      "_CartesianChart-BH6XsUdY.js"
     ]
   },
-  "_BarChart-BdgTvO_H.js": {
-    "file": "assets/BarChart-BdgTvO_H.js",
+  "_BarChart-CopmbLdM.js": {
+    "file": "assets/BarChart-CopmbLdM.js",
     "name": "BarChart",
     "imports": [
       "index.html",
-      "_CartesianChart-BNI3m3zX.js"
+      "_CartesianChart-BH6XsUdY.js"
     ]
   },
-  "_CartesianChart-BNI3m3zX.js": {
-    "file": "assets/CartesianChart-BNI3m3zX.js",
+  "_CartesianChart-BH6XsUdY.js": {
+    "file": "assets/CartesianChart-BH6XsUdY.js",
     "name": "CartesianChart",
     "imports": [
       "index.html"
     ]
   },
-  "_CartesianGrid-Ysb33k6h.js": {
-    "file": "assets/CartesianGrid-Ysb33k6h.js",
-    "name": "CartesianGrid",
-    "imports": [
-      "index.html",
-      "_CartesianChart-BNI3m3zX.js"
-    ]
-  },
-  "_CheckCircleOutlineRounded-BBLOCbl3.js": {
-    "file": "assets/CheckCircleOutlineRounded-BBLOCbl3.js",
+  "_CheckCircleOutlineRounded-L10d8VB3.js": {
+    "file": "assets/CheckCircleOutlineRounded-L10d8VB3.js",
     "name": "CheckCircleOutlineRounded",
     "imports": [
       "index.html"
     ]
   },
-  "_Common-h9BH1PlT.js": {
-    "file": "assets/Common-h9BH1PlT.js",
+  "_Collapse-Cao4-YXZ.js": {
+    "file": "assets/Collapse-Cao4-YXZ.js",
+    "name": "Collapse",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "_Common-BeGXL5Vg.js": {
+    "file": "assets/Common-BeGXL5Vg.js",
     "name": "Common",
     "imports": [
       "index.html"
     ]
   },
-  "_DeleteOutlineRounded-DuW2-7-K.js": {
-    "file": "assets/DeleteOutlineRounded-DuW2-7-K.js",
+  "_DeleteOutlineRounded-BdHHF1vB.js": {
+    "file": "assets/DeleteOutlineRounded-BdHHF1vB.js",
     "name": "DeleteOutlineRounded",
     "imports": [
       "index.html"
     ]
   },
-  "_DialogActions-D5q-7fU8.js": {
-    "file": "assets/DialogActions-D5q-7fU8.js",
+  "_DialogActions-BT6QgtwT.js": {
+    "file": "assets/DialogActions-BT6QgtwT.js",
     "name": "DialogActions",
     "imports": [
       "index.html"
     ]
   },
-  "_DownloadOutlined-DKXlqq8a.js": {
-    "file": "assets/DownloadOutlined-DKXlqq8a.js",
+  "_DownloadOutlined-Dk0eSGwv.js": {
+    "file": "assets/DownloadOutlined-Dk0eSGwv.js",
     "name": "DownloadOutlined",
     "imports": [
       "index.html"
     ]
   },
-  "_EditOutlined-DHUBmwJt.js": {
-    "file": "assets/EditOutlined-DHUBmwJt.js",
+  "_EditOutlined-D7VXVFNb.js": {
+    "file": "assets/EditOutlined-D7VXVFNb.js",
     "name": "EditOutlined",
     "imports": [
       "index.html"
     ]
   },
-  "_FormControlLabel-YpAzmXiQ.js": {
-    "file": "assets/FormControlLabel-YpAzmXiQ.js",
+  "_FormControlLabel-9OSQZ6N3.js": {
+    "file": "assets/FormControlLabel-9OSQZ6N3.js",
     "name": "FormControlLabel",
     "imports": [
       "index.html"
     ]
   },
-  "_KeyboardArrowRightRounded-i_HrLzdK.js": {
-    "file": "assets/KeyboardArrowRightRounded-i_HrLzdK.js",
+  "_InputAdornment-DBOh49Tt.js": {
+    "file": "assets/InputAdornment-DBOh49Tt.js",
+    "name": "InputAdornment",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "_KeyboardArrowRightRounded-BgoxbnnN.js": {
+    "file": "assets/KeyboardArrowRightRounded-BgoxbnnN.js",
     "name": "KeyboardArrowRightRounded",
     "imports": [
       "index.html"
     ]
   },
-  "_Line-BEEx0HnU.js": {
-    "file": "assets/Line-BEEx0HnU.js",
+  "_Line-CmbMBQvb.js": {
+    "file": "assets/Line-CmbMBQvb.js",
     "name": "Line",
     "imports": [
       "index.html",
-      "_CartesianChart-BNI3m3zX.js"
+      "_CartesianChart-BH6XsUdY.js"
     ]
   },
-  "_LineChart-CMCOT83C.js": {
-    "file": "assets/LineChart-CMCOT83C.js",
+  "_LineChart-xKs4bvsO.js": {
+    "file": "assets/LineChart-xKs4bvsO.js",
     "name": "LineChart",
     "imports": [
       "index.html",
-      "_CartesianChart-BNI3m3zX.js"
+      "_CartesianChart-BH6XsUdY.js"
     ]
   },
-  "_PlayArrowRounded-Ba5U8Vri.js": {
-    "file": "assets/PlayArrowRounded-Ba5U8Vri.js",
+  "_PlayArrowRounded-D6ddmOCp.js": {
+    "file": "assets/PlayArrowRounded-D6ddmOCp.js",
     "name": "PlayArrowRounded",
     "imports": [
       "index.html"
     ]
   },
-  "_RestartAltRounded-BuUWAdoF.js": {
-    "file": "assets/RestartAltRounded-BuUWAdoF.js",
+  "_RestartAltRounded-B4F-83U3.js": {
+    "file": "assets/RestartAltRounded-B4F-83U3.js",
     "name": "RestartAltRounded",
     "imports": [
       "index.html"
     ]
   },
-  "_SaveOutlined-Bc5On4m9.js": {
-    "file": "assets/SaveOutlined-Bc5On4m9.js",
+  "_SaveOutlined-ZnuGu5p0.js": {
+    "file": "assets/SaveOutlined-ZnuGu5p0.js",
     "name": "SaveOutlined",
     "imports": [
       "index.html"
     ]
   },
-  "_SearchRounded-yWYOt4sM.js": {
-    "file": "assets/SearchRounded-yWYOt4sM.js",
+  "_SearchRounded-BJ2PQSg9.js": {
+    "file": "assets/SearchRounded-BJ2PQSg9.js",
     "name": "SearchRounded",
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js"
+      "_Common-BeGXL5Vg.js"
     ]
   },
-  "_Switch-YqkkB6T9.js": {
-    "file": "assets/Switch-YqkkB6T9.js",
+  "_Switch-DIRwkmdq.js": {
+    "file": "assets/Switch-DIRwkmdq.js",
     "name": "Switch",
     "imports": [
       "index.html"
     ]
   },
-  "_TextField-CAa5kOMj.js": {
-    "file": "assets/TextField-CAa5kOMj.js",
+  "_TextField-CqFYtLCj.js": {
+    "file": "assets/TextField-CqFYtLCj.js",
     "name": "TextField",
     "imports": [
       "index.html"
     ]
   },
-  "_ToggleButtonGroup-6Y2xaGU8.js": {
-    "file": "assets/ToggleButtonGroup-6Y2xaGU8.js",
+  "_ToggleButtonGroup-C5SYgwL6.js": {
+    "file": "assets/ToggleButtonGroup-C5SYgwL6.js",
     "name": "ToggleButtonGroup",
     "imports": [
       "index.html"
     ]
   },
-  "_liquidityMetrics-BCHo8tdy.js": {
-    "file": "assets/liquidityMetrics-BCHo8tdy.js",
+  "_liquidityMetrics-Dc6Wzj8P.js": {
+    "file": "assets/liquidityMetrics-Dc6Wzj8P.js",
     "name": "liquidityMetrics",
     "imports": [
       "index.html",
-      "_CartesianChart-BNI3m3zX.js"
+      "_CartesianChart-BH6XsUdY.js"
+    ]
+  },
+  "_regulatoryNarrative-B-gPPSi_.js": {
+    "file": "assets/regulatoryNarrative-B-gPPSi_.js",
+    "name": "regulatoryNarrative",
+    "imports": [
+      "index.html"
     ]
   },
   "index.html": {
-    "file": "assets/index-DMu4q3FK.js",
+    "file": "assets/index-Dpz9eHZI.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -239,197 +252,205 @@
     "src": "node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2"
   },
   "src/pages/Assumptions.tsx": {
-    "file": "assets/Assumptions-oTR9zLgV.js",
+    "file": "assets/Assumptions-DlCsqd9N.js",
     "name": "Assumptions",
     "src": "src/pages/Assumptions.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_ToggleButtonGroup-6Y2xaGU8.js",
-      "_EditOutlined-DHUBmwJt.js",
-      "_DeleteOutlineRounded-DuW2-7-K.js",
-      "_TextField-CAa5kOMj.js",
-      "_RestartAltRounded-BuUWAdoF.js",
-      "_Switch-YqkkB6T9.js",
-      "_DialogActions-D5q-7fU8.js",
-      "_SaveOutlined-Bc5On4m9.js",
-      "_CartesianChart-BNI3m3zX.js",
-      "_LineChart-CMCOT83C.js",
-      "_Line-BEEx0HnU.js"
+      "_Common-BeGXL5Vg.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_ToggleButtonGroup-C5SYgwL6.js",
+      "_EditOutlined-D7VXVFNb.js",
+      "_DeleteOutlineRounded-BdHHF1vB.js",
+      "_TextField-CqFYtLCj.js",
+      "_RestartAltRounded-B4F-83U3.js",
+      "_Switch-DIRwkmdq.js",
+      "_DialogActions-BT6QgtwT.js",
+      "_SaveOutlined-ZnuGu5p0.js",
+      "_CartesianChart-BH6XsUdY.js",
+      "_LineChart-xKs4bvsO.js",
+      "_Line-CmbMBQvb.js"
     ]
   },
   "src/pages/Entities.tsx": {
-    "file": "assets/Entities-DKmrz1tc.js",
+    "file": "assets/Entities-BVLftSfb.js",
     "name": "Entities",
     "src": "src/pages/Entities.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_TextField-CAa5kOMj.js",
-      "_FormControlLabel-YpAzmXiQ.js",
-      "_Switch-YqkkB6T9.js",
-      "_DialogActions-D5q-7fU8.js"
+      "_Common-BeGXL5Vg.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_TextField-CqFYtLCj.js",
+      "_FormControlLabel-9OSQZ6N3.js",
+      "_Switch-DIRwkmdq.js",
+      "_DialogActions-BT6QgtwT.js"
     ]
   },
   "src/pages/History.tsx": {
-    "file": "assets/History-DqANCIo2.js",
+    "file": "assets/History-nKT4GDR7.js",
     "name": "History",
     "src": "src/pages/History.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_TextField-CAa5kOMj.js"
+      "_Common-BeGXL5Vg.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_TextField-CqFYtLCj.js"
     ]
   },
   "src/pages/LcrStress.tsx": {
-    "file": "assets/LcrStress-uzAP4Y-C.js",
+    "file": "assets/LcrStress-CVBIfVHU.js",
     "name": "LcrStress",
     "src": "src/pages/LcrStress.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_RestartAltRounded-BuUWAdoF.js",
-      "_PlayArrowRounded-Ba5U8Vri.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_TextField-CAa5kOMj.js",
-      "_FormControlLabel-YpAzmXiQ.js",
-      "_Switch-YqkkB6T9.js",
-      "_EditOutlined-DHUBmwJt.js",
-      "_DeleteOutlineRounded-DuW2-7-K.js",
-      "_DownloadOutlined-DKXlqq8a.js",
-      "_DialogActions-D5q-7fU8.js"
+      "_Common-BeGXL5Vg.js",
+      "_RestartAltRounded-B4F-83U3.js",
+      "_PlayArrowRounded-D6ddmOCp.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_TextField-CqFYtLCj.js",
+      "_FormControlLabel-9OSQZ6N3.js",
+      "_Switch-DIRwkmdq.js",
+      "_EditOutlined-D7VXVFNb.js",
+      "_DeleteOutlineRounded-BdHHF1vB.js",
+      "_DownloadOutlined-Dk0eSGwv.js",
+      "_DialogActions-BT6QgtwT.js"
     ]
   },
   "src/pages/LiquidityAnalytics.tsx": {
-    "file": "assets/LiquidityAnalytics-Cyae15VK.js",
+    "file": "assets/LiquidityAnalytics-B1BvUILW.js",
     "name": "LiquidityAnalytics",
     "src": "src/pages/LiquidityAnalytics.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_liquidityMetrics-BCHo8tdy.js",
-      "_Common-h9BH1PlT.js",
-      "_ToggleButtonGroup-6Y2xaGU8.js",
-      "_CartesianChart-BNI3m3zX.js",
-      "_CartesianGrid-Ysb33k6h.js",
-      "_Bar-BVv08mS3.js",
-      "_BarChart-BdgTvO_H.js"
+      "_liquidityMetrics-Dc6Wzj8P.js",
+      "_Common-BeGXL5Vg.js",
+      "_ToggleButtonGroup-C5SYgwL6.js",
+      "_CartesianChart-BH6XsUdY.js",
+      "_Bar-BSqXfgzJ.js",
+      "_BarChart-CopmbLdM.js",
+      "_Collapse-Cao4-YXZ.js"
     ]
   },
   "src/pages/NewCalculation.tsx": {
-    "file": "assets/NewCalculation-BzFLKeCx.js",
+    "file": "assets/NewCalculation-BeJkQvzu.js",
     "name": "NewCalculation",
     "src": "src/pages/NewCalculation.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_ToggleButtonGroup-6Y2xaGU8.js",
-      "_TextField-CAa5kOMj.js",
-      "_FormControlLabel-YpAzmXiQ.js",
-      "_Switch-YqkkB6T9.js",
-      "_CheckCircleOutlineRounded-BBLOCbl3.js",
-      "_ArrowBackRounded-qryRhNAp.js",
-      "_PlayArrowRounded-Ba5U8Vri.js"
+      "_Common-BeGXL5Vg.js",
+      "_ToggleButtonGroup-C5SYgwL6.js",
+      "_TextField-CqFYtLCj.js",
+      "_InputAdornment-DBOh49Tt.js",
+      "_DeleteOutlineRounded-BdHHF1vB.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_RestartAltRounded-B4F-83U3.js",
+      "_FormControlLabel-9OSQZ6N3.js",
+      "_Switch-DIRwkmdq.js",
+      "_CheckCircleOutlineRounded-L10d8VB3.js",
+      "_ArrowBackRounded-D01seoUT.js",
+      "_PlayArrowRounded-D6ddmOCp.js"
     ]
   },
   "src/pages/Overview.tsx": {
-    "file": "assets/Overview-Ds-AyilI.js",
+    "file": "assets/Overview-CBLZAA3s.js",
     "name": "Overview",
     "src": "src/pages/Overview.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_liquidityMetrics-BCHo8tdy.js",
-      "_Common-h9BH1PlT.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_ToggleButtonGroup-6Y2xaGU8.js",
-      "_CartesianChart-BNI3m3zX.js",
-      "_LineChart-CMCOT83C.js",
-      "_CartesianGrid-Ysb33k6h.js",
-      "_Line-BEEx0HnU.js",
-      "_CheckCircleOutlineRounded-BBLOCbl3.js"
+      "_liquidityMetrics-Dc6Wzj8P.js",
+      "_regulatoryNarrative-B-gPPSi_.js",
+      "_Common-BeGXL5Vg.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_ToggleButtonGroup-C5SYgwL6.js",
+      "_CartesianChart-BH6XsUdY.js",
+      "_LineChart-xKs4bvsO.js",
+      "_Bar-BSqXfgzJ.js",
+      "_Line-CmbMBQvb.js",
+      "_BarChart-CopmbLdM.js",
+      "_CheckCircleOutlineRounded-L10d8VB3.js"
     ]
   },
   "src/pages/Portfolio.tsx": {
-    "file": "assets/Portfolio-o5qDRXlW.js",
+    "file": "assets/Portfolio-Bzs82XAu.js",
     "name": "Portfolio",
     "src": "src/pages/Portfolio.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_TextField-CAa5kOMj.js",
-      "_FormControlLabel-YpAzmXiQ.js",
-      "_Switch-YqkkB6T9.js",
-      "_DialogActions-D5q-7fU8.js",
-      "_SaveOutlined-Bc5On4m9.js",
-      "_SearchRounded-yWYOt4sM.js",
-      "_DownloadOutlined-DKXlqq8a.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_EditOutlined-DHUBmwJt.js",
-      "_DeleteOutlineRounded-DuW2-7-K.js"
+      "_Common-BeGXL5Vg.js",
+      "_TextField-CqFYtLCj.js",
+      "_FormControlLabel-9OSQZ6N3.js",
+      "_Switch-DIRwkmdq.js",
+      "_DialogActions-BT6QgtwT.js",
+      "_SaveOutlined-ZnuGu5p0.js",
+      "_InputAdornment-DBOh49Tt.js",
+      "_SearchRounded-BJ2PQSg9.js",
+      "_DownloadOutlined-Dk0eSGwv.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_EditOutlined-D7VXVFNb.js",
+      "_DeleteOutlineRounded-BdHHF1vB.js"
     ]
   },
   "src/pages/RegulatoryReport.tsx": {
-    "file": "assets/RegulatoryReport-BhnV8TuH.js",
+    "file": "assets/RegulatoryReport-Bv5CSKxT.js",
     "name": "RegulatoryReport",
     "src": "src/pages/RegulatoryReport.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_KeyboardArrowRightRounded-i_HrLzdK.js",
-      "_ArrowBackRounded-qryRhNAp.js",
-      "_DownloadOutlined-DKXlqq8a.js",
-      "_BarChart-BdgTvO_H.js",
-      "_CartesianChart-BNI3m3zX.js",
-      "_LineChart-CMCOT83C.js",
-      "_CartesianGrid-Ysb33k6h.js",
-      "_Line-BEEx0HnU.js",
-      "_Bar-BVv08mS3.js"
+      "_Common-BeGXL5Vg.js",
+      "_KeyboardArrowRightRounded-BgoxbnnN.js",
+      "_ArrowBackRounded-D01seoUT.js",
+      "_DownloadOutlined-Dk0eSGwv.js",
+      "_Collapse-Cao4-YXZ.js",
+      "_regulatoryNarrative-B-gPPSi_.js",
+      "_CartesianChart-BH6XsUdY.js",
+      "_LineChart-xKs4bvsO.js",
+      "_Bar-BSqXfgzJ.js",
+      "_Line-CmbMBQvb.js",
+      "_BarChart-CopmbLdM.js"
     ]
   },
   "src/pages/Results.tsx": {
-    "file": "assets/Results-BUremLaW.js",
+    "file": "assets/Results-BaTxYtcv.js",
     "name": "Results",
     "src": "src/pages/Results.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_CartesianChart-BNI3m3zX.js",
-      "_CartesianGrid-Ysb33k6h.js",
-      "_Bar-BVv08mS3.js",
-      "_Line-BEEx0HnU.js",
-      "_DownloadOutlined-DKXlqq8a.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_SearchRounded-yWYOt4sM.js",
-      "_ToggleButtonGroup-6Y2xaGU8.js",
-      "_TextField-CAa5kOMj.js",
-      "_CheckCircleOutlineRounded-BBLOCbl3.js",
-      "_KeyboardArrowRightRounded-i_HrLzdK.js"
+      "_Common-BeGXL5Vg.js",
+      "_CartesianChart-BH6XsUdY.js",
+      "_Bar-BSqXfgzJ.js",
+      "_Line-CmbMBQvb.js",
+      "_DownloadOutlined-Dk0eSGwv.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_SearchRounded-BJ2PQSg9.js",
+      "_ToggleButtonGroup-C5SYgwL6.js",
+      "_TextField-CqFYtLCj.js",
+      "_InputAdornment-DBOh49Tt.js",
+      "_CheckCircleOutlineRounded-L10d8VB3.js",
+      "_KeyboardArrowRightRounded-BgoxbnnN.js"
     ]
   },
   "src/pages/Settings.tsx": {
-    "file": "assets/Settings-BkORvR01.js",
+    "file": "assets/Settings-DOppa0g2.js",
     "name": "Settings",
     "src": "src/pages/Settings.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_Common-h9BH1PlT.js",
-      "_ToggleButtonGroup-6Y2xaGU8.js",
-      "_AddRounded-CmmM1TJU.js",
-      "_TextField-CAa5kOMj.js",
-      "_DeleteOutlineRounded-DuW2-7-K.js"
+      "_Common-BeGXL5Vg.js",
+      "_ToggleButtonGroup-C5SYgwL6.js",
+      "_AddRounded-DsyCBL5z.js",
+      "_TextField-CqFYtLCj.js",
+      "_DeleteOutlineRounded-BdHHF1vB.js"
     ]
   }
 }
