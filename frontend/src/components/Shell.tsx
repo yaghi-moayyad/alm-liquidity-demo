@@ -37,6 +37,7 @@ import {
   ArrowOutwardRounded,
   TuneRounded,
   QueryStatsRounded,
+  InsightsRounded,
   WarningAmberRounded,
 } from "@mui/icons-material";
 import { useWorkspace } from "../context";
@@ -44,6 +45,7 @@ import { csrf } from "../api";
 const width = 242;
 const links = [
   { path: "/", label: "Overview", icon: DashboardOutlined },
+  { path: "/analytics", label: "Liquidity analytics", icon: InsightsRounded },
   { path: "/lcr", label: "LCR", icon: QueryStatsRounded },
   { path: "/nsfr", label: "NSFR", icon: QueryStatsRounded },
   {
