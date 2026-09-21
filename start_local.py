@@ -24,6 +24,8 @@ def main():
         run('-m','pip','install','-r','requirements.txt')
         marker.write_text(requirements)
     run('manage.py','migrate','--noinput')
+    # Demo-only reviewer: ensure the requested superuser exists on local starts.
+    run('manage.py','seed_demo','--username','adel','--password','adel1234','--create-user')
     check=subprocess.run([str(PYTHON),'manage.py','shell','-c',
         "from django.contrib.auth import get_user_model; import sys; sys.exit(0 if get_user_model().objects.filter(is_superuser=True).exists() else 1)"],cwd=ROOT)
     if check.returncode==1:

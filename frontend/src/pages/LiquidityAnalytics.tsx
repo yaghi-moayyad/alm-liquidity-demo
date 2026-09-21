@@ -1,90 +1,125 @@
 import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
-import {useNavigate} from 'react-router-dom';
-import {Alert,Box,Button,Card,Chip,Divider,LinearProgress,MenuItem,Select,Stack,Table,TableBody,TableCell,TableContainer,TableHead,TableRow,Typography} from '@mui/material';
-import {AccountBalanceWalletOutlined,ArrowForwardRounded,NorthEastRounded,QueryStatsRounded,SouthWestRounded,TrendingDownRounded,WarningAmberRounded} from '@mui/icons-material';
-import {Area,AreaChart,Bar,BarChart,CartesianGrid,Cell,Legend,Pie,PieChart,ReferenceLine,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
-import {useRuns,useWorkspace} from '../context';
+import {useNavigate,useSearchParams} from 'react-router-dom';
+import {Accordion,AccordionDetails,AccordionSummary,Alert,Box,Button,Card,Chip,Divider,MenuItem,Select,Stack,Table,TableBody,TableCell,TableContainer,TableHead,TableRow,ToggleButton,ToggleButtonGroup,Typography} from '@mui/material';
+import {ArrowForwardRounded,DownloadRounded,ExpandMoreRounded,InsightsRounded,OpenInNewRounded} from '@mui/icons-material';
+import {Area,AreaChart,Bar,BarChart,CartesianGrid,Legend,ReferenceLine,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
 import {api,compact,dateLabel,money} from '../api';
-import type {BankLadder,Bucket} from '../types';
+import {useRuns,useWorkspace} from '../context';
+import {buildLiquidityProfile,bucketMovement,comparableBucket,ladderFor,lineContributors,lineMovement,liquidityCsv,type CashFlowBasis,type CashFlowMode} from '../liquidityMetrics';
 import {Empty,ErrorMessage,Loading,PageHeading,SectionHead} from '../components/Common';
 
-const colours=['#217A70','#3869C9','#B88239','#8B5EAF','#3C8AA6','#C05C62'];
-const n=(value:string|number|undefined)=>Number(value||0);
-const ratio=(a:number,b:number)=>b?`${(100*a/b).toFixed(1)}%`:'—';
-const status=(value:number,threshold:number)=>value>=threshold?{label:'Within appetite',color:'#168876',bg:'#E7F5EF'}:{label:'Attention required',color:'#BE555A',bg:'#FFF0F0'};
+const green='#198473',navy='#205C82',red='#BA555F';
+const sectionNames:Record<string,string>={inflows:'Inflows',outflows:'Outflows',off_balance_sheet:'Off-balance-sheet',counterbalancing_capacity:'Counterbalancing capacity'};
+const sectionOrder=['inflows','outflows','off_balance_sheet','counterbalancing_capacity'];
 
-function Kpi({label,value,note,color,icon:Icon}:{label:string;value:string;note:string;color:string;icon:typeof AccountBalanceWalletOutlined}){
- return <Card sx={{p:2.3,minWidth:0,transition:'transform .18s ease, box-shadow .18s ease','&:hover':{transform:'translateY(-2px)',boxShadow:'0 12px 25px #17324B12'}}}><Stack direction="row" justifyContent="space-between" alignItems="flex-start"><Typography sx={{fontSize:11.5,fontWeight:650,color:'text.secondary'}}>{label}</Typography><Box sx={{p:.8,bgcolor:`${color}14`,color,borderRadius:1.6,display:'flex'}}><Icon sx={{fontSize:18}}/></Box></Stack><Typography sx={{fontSize:{xs:25,md:31},fontWeight:700,letterSpacing:-1.15,mt:1.4,color}}>{value}</Typography><Typography variant="caption" color="text.secondary" display="block" mt={.45}>{note}</Typography></Card>;
-}
-
-function ChartTooltip({active,payload,label,currency}:{active?:boolean;payload?:{name?:string;value?:number|string;color?:string}[];label?:string;currency:string}){
- if(!active||!payload?.length)return null;
- return <Box sx={{bgcolor:'background.paper',border:'1px solid #E0E8F0',boxShadow:'0 12px 28px #10243A1A',p:1.5,borderRadius:2,minWidth:180}}><Typography variant="subtitle2" mb={.75}>{label}</Typography>{payload.map(item=><Stack key={item.name} direction="row" justifyContent="space-between" gap={2}><Typography variant="caption" sx={{color:item.color}}>{item.name}</Typography><Typography variant="caption" fontWeight={700}>{money(n(item.value),currency)}</Typography></Stack>)}</Box>;
+function Figure({label,value,note,tone=navy,full}:{label:string;value:string;note:string;tone?:string;full?:string}){
+ return <Card sx={{p:2.1,minWidth:0,borderTop:`3px solid ${tone}`}}><Typography variant="caption" color="text.secondary" fontWeight={650}>{label}</Typography><Typography title={full||value} sx={{fontSize:{xs:21,md:26},fontWeight:760,color:tone,letterSpacing:-.6,mt:1,overflowWrap:'anywhere'}}>{value}</Typography><Typography variant="caption" color="text.secondary">{note}</Typography></Card>;
 }
 
 export default function LiquidityAnalytics(){
- const {entity}=useWorkspace(),runs=useRuns(),nav=useNavigate();
- const [chosenCurrency,setCurrency]=useState(''),[selectedBucket,setSelectedBucket]=useState<string>('');
- const latest=runs.data?.runs.find(run=>['completed','completed_with_exceptions'].includes(run.status));
- const detail=useQuery({queryKey:['analytics-run',latest?.id],queryFn:()=>api.run(latest!.id),enabled:!!latest});
- const lcr=useQuery({queryKey:['analytics-lcr',entity?.slug],queryFn:()=>api.lcrReport(entity!.slug),enabled:!!entity});
- const nsfr=useQuery({queryKey:['analytics-nsfr',entity?.slug],queryFn:()=>api.nsfrReport(entity!.slug),enabled:!!entity});
- if(runs.isLoading||detail.isLoading||lcr.isLoading||nsfr.isLoading)return <Loading/>;
- if(!latest)return <Empty title="No liquidity analytics yet" description="Run a calculation first. The analytics page then turns the saved cash-flow results into management-ready liquidity indicators." action={<Button variant="contained" onClick={()=>nav('/new')}>New calculation</Button>}/>;
- if(detail.error)return <ErrorMessage error={detail.error}/>;
- const result=detail.data?.result;
- if(!result)return <Empty title="Calculation still in progress" description="Analytics will appear as soon as the current calculation is complete." action={<Button variant="outlined" onClick={()=>nav('/runs')}>View run history</Button>}/>;
- const currency=result.currencies.includes(chosenCurrency)?chosenCurrency:result.currencies[0]||entity?.base_currency||'JOD';
- const rows=result.summary[currency]||[];
- const boundaries=result.bucket_days;
- const chartData=rows.map((row,index)=>({
-  ...row,
-  label:row.bucket|| (index<boundaries.length?`≤ ${boundaries[index]}d`:`> ${boundaries.at(-1)||0}d`),
-  inflows:n(row.inflows),outflows:n(row.outflows),net:n(row.net_gap),cumulative:n(row.cumulative_gap),index,
- }));
- const ladder:BankLadder|undefined=result.bank_ladder?.[currency];
- const totals=(()=>{
-  const inflow=chartData.reduce((sum,row)=>sum+row.inflows,0),outflow=chartData.reduce((sum,row)=>sum+row.outflows,0);
-  const within30=chartData.filter((_,index)=>(boundaries[index]||Infinity)<=30);
-  const inflow30=within30.reduce((sum,row)=>sum+row.inflows,0),outflow30=within30.reduce((sum,row)=>sum+row.outflows,0);
-  const low=chartData.reduce((current,row)=>row.cumulative<current.cumulative?row:current,chartData[0]||{cumulative:0,label:'—'});
-  const largestOutflow=chartData.reduce((current,row)=>row.outflows>current.outflows?row:current,chartData[0]||{outflows:0,label:'—'});
-  return {inflow,outflow,inflow30,outflow30,low,largestOutflow};
- })();
- const productData=(()=>{
-  const source=ladder?.rows.filter(row=>row.kind==='normal'&&(row.section==='inflows'||row.section==='outflows'))||[];
-  const values=source.map(row=>({name:row.label.replace(/_/g,' '),value:Math.abs(n(row.balance)),direction:row.section==='inflows'?'Inflow':'Outflow'})).filter(row=>row.value>0).sort((a,b)=>b.value-a.value).slice(0,6);
-  return values.length?values:[{name:'No grouped balance available',value:1,direction:'Inflow'}];
- })();
- const selected=chartData.find(row=>row.label===selectedBucket);
- const gapStatus=status(totals.low.cumulative,0),lcrValue=n(lcr.data?.lcr)*100,nsfrValue=n(nsfr.data?.nsfr)*100;
- const issues=[
-  totals.low.cumulative<0?{title:'Cumulative gap turns negative',detail:`Lowest point: ${money(totals.low.cumulative,currency)} in ${totals.low.label}.`,severity:'error' as const}:{title:'No negative cumulative gap',detail:'The calculated contractual horizon remains positive.',severity:'success' as const},
-  {title:'30-day cash-flow coverage',detail:`Inflows cover ${ratio(totals.inflow30,totals.outflow30)} of contractual outflows through 30 days.`,severity:totals.inflow30>=totals.outflow30?'success' as const:'warning' as const},
-  {title:'Largest timing pressure',detail:`${totals.largestOutflow.label} carries ${money(totals.largestOutflow.outflows,currency)} of scheduled outflow.`,severity:'info' as const},
- ];
- return <><PageHeading title="Liquidity analytics" subtitle="Management-ready cash-flow intelligence from the selected calculation, with transparent contractual drivers." action={<Stack direction="row" gap={1}><Button variant="outlined" onClick={()=>nav(`/results/${latest.id}`)}>Open detailed ladder</Button><Button variant="contained" endIcon={<ArrowForwardRounded/>} onClick={()=>nav('/lcr')}>Open LCR</Button></Stack>}/>
- <ErrorMessage error={runs.error||lcr.error||nsfr.error}/>
- <Card sx={{p:{xs:2,md:2.5},mb:3,background:'linear-gradient(110deg,#11344A 0%,#1D5270 56%,#2A6B87 100%)',color:'white',border:'none',overflow:'hidden',position:'relative'}}><Box sx={{position:'absolute',right:-95,top:-145,width:320,height:320,borderRadius:'50%',border:'56px solid #7DD3C420'}}/><Stack direction={{xs:'column',md:'row'}} gap={2} justifyContent="space-between" alignItems={{md:'center'}} position="relative"><Box><Typography variant="overline" sx={{letterSpacing:1.5,color:'#A7D6D3'}}>LIQUIDITY INTELLIGENCE</Typography><Typography variant="h5" fontWeight={700}>What is driving the contractual position?</Typography><Typography variant="body2" sx={{color:'#D3E6EB',mt:.7}}>Click any maturity bucket to review its scheduled flows and cumulative position.</Typography></Box><Stack direction="row" gap={1.2} flexWrap="wrap"><Chip label={`${entity?.name||'Entity'} · ${dateLabel(result.as_of_date)}`} sx={{bgcolor:'#FFFFFF1A',color:'white',fontWeight:600}}/><Chip label={gapStatus.label} sx={{bgcolor:gapStatus.label==='Within appetite'?'#8FE1CF':'#FFD4D5',color:gapStatus.label==='Within appetite'?'#15594E':'#942B32',fontWeight:700}}/></Stack></Stack></Card>
- <Stack direction="row" alignItems="center" gap={1.25} mb={2.25} flexWrap="wrap"><Typography variant="body2" fontWeight={700}>Original currency</Typography><Select size="small" value={currency} onChange={event=>{setCurrency(event.target.value);setSelectedBucket('')}} sx={{minWidth:150}}>{result.currencies.map(item=><MenuItem key={item} value={item}>{item}</MenuItem>)}</Select><Typography variant="caption" color="text.secondary">Saved run · {dateLabel(result.as_of_date)} · contractual basis</Typography></Stack>
- <Box sx={{display:'grid',gridTemplateColumns:{xs:'1fr 1fr',xl:'repeat(4,1fr)'},gap:2,mb:3}}><Kpi label="30-day coverage" value={ratio(totals.inflow30,totals.outflow30)} note="Contractual inflows ÷ outflows" color={totals.inflow30>=totals.outflow30?'#168876':'#BE555A'} icon={AccountBalanceWalletOutlined}/><Kpi label="Lowest cumulative gap" value={compact(totals.low.cumulative)} note={`${totals.low.label} · ${currency}`} color={totals.low.cumulative>=0?'#168876':'#BE555A'} icon={TrendingDownRounded}/><Kpi label="LCR" value={lcr.data?`${lcrValue.toFixed(1)}%`:'—'} note="High-quality liquid assets / net outflows" color={lcrValue>=100?'#3869C9':'#BE555A'} icon={QueryStatsRounded}/><Kpi label="NSFR" value={nsfr.data?`${nsfrValue.toFixed(1)}%`:'—'} note="Available stable funding / required funding" color={nsfrValue>=100?'#3869C9':'#BE555A'} icon={AccountBalanceWalletOutlined}/></Box>
- <Box sx={{display:'grid',gridTemplateColumns:{xs:'1fr',xl:'minmax(0,2.1fr) minmax(300px,.9fr)'},gap:3,mb:3}}><Card><SectionHead title="Cumulative liquidity position" subtitle="Click a point to select a maturity bucket."/><Box sx={{height:305,px:1.5,pb:1.5}}><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:14,right:18,left:0,bottom:8}} onClick={state=>{const item=(state as unknown as {activePayload?:{payload?:typeof chartData[number]}[]})?.activePayload?.[0]?.payload;if(item)setSelectedBucket(item.label);}}><defs><linearGradient id="cumulativeGap" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#2C81B1" stopOpacity={.34}/><stop offset="100%" stopColor="#2C81B1" stopOpacity={.02}/></linearGradient></defs><CartesianGrid stroke="#E8EEF3" strokeDasharray="3 4" vertical={false}/><XAxis dataKey="label" tick={{fontSize:10,fill:'#7B8998'}} axisLine={false} tickLine={false} interval="preserveStartEnd"/><YAxis tickFormatter={value=>compact(value)} tick={{fontSize:10,fill:'#7B8998'}} axisLine={false} tickLine={false} width={68}/><ReferenceLine y={0} stroke="#B85A61" strokeDasharray="4 4"/><Tooltip content={<ChartTooltip currency={currency}/>}/><Area type="monotone" dataKey="cumulative" name="Cumulative gap" stroke="#286CCF" strokeWidth={3} fill="url(#cumulativeGap)" activeDot={{r:6,strokeWidth:2}}/></AreaChart></ResponsiveContainer></Box><Divider/><Box px={2.5} py={1.6}><Typography variant="caption" color="text.secondary">A negative area means contractual outflows exceed accumulated inflows. Opening cash, undated balances and management actions are excluded.</Typography></Box></Card>
- <Card sx={{display:'flex',flexDirection:'column'}}>
-  <SectionHead title="Selected bucket" subtitle={selected?selected.label:'Select a point in the chart'}/>
-  <Box sx={{p:2.5,pt:0,flex:1}}>
-   {selected ? <>
-    <Stack direction="row" justifyContent="space-between" alignItems="baseline"><Typography variant="h4" sx={{color:selected.cumulative<0?'error.main':'success.main'}}>{money(selected.cumulative,currency)}</Typography><Chip size="small" label={selected.cumulative<0?'Deficit':'Surplus'} color={selected.cumulative<0?'error':'success'} variant="outlined"/></Stack>
-    <Typography variant="caption" color="text.secondary">Cumulative contractual gap</Typography>
-    <Divider sx={{my:2}}/>
-    {[['Inflows',selected.inflows,'#168876'],['Outflows',selected.outflows,'#5C78BD'],['Net cash flow',selected.net,selected.net<0?'#BE555A':'#168876']].map(([label,value,color])=><Stack key={String(label)} direction="row" justifyContent="space-between" mb={1.2}><Typography variant="body2" color="text.secondary">{label}</Typography><Typography variant="body2" fontWeight={700} sx={{color:String(color)}}>{money(Number(value),currency)}</Typography></Stack>)}
-   </> : <Typography variant="body2" color="text.secondary">Choose any point in the cumulative chart to see its inflows, outflows and net timing pressure.</Typography>}
-  </Box>
-  {selected&&<Button onClick={()=>nav(`/results/${latest.id}`)} endIcon={<ArrowForwardRounded/>} sx={{m:1}}>Inspect in ladder</Button>}
- </Card></Box>
- <Box sx={{display:'grid',gridTemplateColumns:{xs:'1fr',xl:'minmax(0,1.3fr) minmax(0,1.1fr) minmax(260px,.8fr)'},gap:3,mb:3}}><Card><SectionHead title="Inflows versus outflows" subtitle="Cash-flow timing by maturity bucket"/><Box sx={{height:270,px:1.5,pb:1.5}}><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} margin={{top:12,right:8,left:0,bottom:8}}><CartesianGrid stroke="#E8EEF3" strokeDasharray="3 4" vertical={false}/><XAxis dataKey="label" tick={{fontSize:9,fill:'#7B8998'}} axisLine={false} tickLine={false} interval="preserveStartEnd"/><YAxis tickFormatter={value=>compact(value)} tick={{fontSize:10,fill:'#7B8998'}} axisLine={false} tickLine={false} width={62}/><Tooltip content={<ChartTooltip currency={currency}/>}/><Legend wrapperStyle={{fontSize:11}}/><Bar dataKey="inflows" name="Inflows" fill="#188A79" radius={[4,4,0,0]} maxBarSize={21}/><Bar dataKey="outflows" name="Outflows" fill="#87A0D9" radius={[4,4,0,0]} maxBarSize={21}/></BarChart></ResponsiveContainer></Box></Card>
- <Card><SectionHead title="Balance-sheet mix" subtitle="Largest current principal balances by liquidity line"/><Box sx={{height:270,px:1.5,pb:1.5}}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={productData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={88} paddingAngle={2}>{productData.map((_,index)=><Cell key={index} fill={colours[index%colours.length]}/>)}</Pie><Tooltip formatter={(value)=>money(Number(value),currency)}/><Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize:10,maxWidth:145}}/></PieChart></ResponsiveContainer></Box></Card>
- <Card sx={{p:2.5}}><Stack direction="row" gap={1} alignItems="center"><WarningAmberRounded color="warning"/><Typography variant="subtitle1" fontWeight={700}>Decision cues</Typography></Stack><Stack gap={1.35} mt={2}>{issues.map(issue=><Alert key={issue.title} severity={issue.severity} variant="outlined" icon={false} sx={{py:.7}}><Typography variant="caption" fontWeight={750} display="block">{issue.title}</Typography><Typography variant="caption">{issue.detail}</Typography></Alert>)}</Stack></Card></Box>
- <Card><SectionHead title="Maturity pressure monitor" subtitle="The buckets that matter most for the next management conversation." action={<Button size="small" onClick={()=>nav(`/results/${latest.id}`)}>Full ladder <ArrowForwardRounded sx={{fontSize:15,ml:.4}}/></Button>}/><TableContainer><Table size="small"><TableHead><TableRow><TableCell>Bucket</TableCell><TableCell align="right">Contractual inflows</TableCell><TableCell align="right">Contractual outflows</TableCell><TableCell align="right">Net flow</TableCell><TableCell align="right">Cumulative gap</TableCell><TableCell>Signal</TableCell></TableRow></TableHead><TableBody>{[...chartData].sort((a,b)=>a.cumulative-b.cumulative).slice(0,5).map(row=><TableRow key={row.label} hover onClick={()=>setSelectedBucket(row.label)} sx={{cursor:'pointer'}}><TableCell sx={{fontWeight:650}}>{row.label}</TableCell><TableCell align="right">{money(row.inflows,currency)}</TableCell><TableCell align="right">{money(row.outflows,currency)}</TableCell><TableCell align="right" sx={{color:row.net<0?'error.main':'success.main',fontWeight:650}}>{money(row.net,currency)}</TableCell><TableCell align="right" sx={{color:row.cumulative<0?'error.main':'success.main',fontWeight:700}}>{money(row.cumulative,currency)}</TableCell><TableCell><Chip size="small" label={row.cumulative<0?'Liquidity deficit':'Positive position'} color={row.cumulative<0?'error':'success'} variant="outlined"/></TableCell></TableRow>)}</TableBody></Table></TableContainer></Card>
+ const {entity}=useWorkspace(),runs=useRuns(),nav=useNavigate(),[searchParams]=useSearchParams();
+ const [chosenRun,setRun]=useState(''),[chosenCurrency,setCurrency]=useState('');
+ const [basis,setBasis]=useState<CashFlowBasis>('contractual'),[mode,setMode]=useState<CashFlowMode>('principal');
+ const [comparisonChoice,setComparisonChoice]=useState('auto');
+ const [selectedCode,setSelectedCode]=useState(searchParams.get('bucket')||'');
+ const [showAll,setShowAll]=useState(false);
+ const completed=runs.data?.runs.filter(run=>['completed','completed_with_exceptions'].includes(run.status)).sort((a,b)=>b.as_of_date.localeCompare(a.as_of_date)||b.created.localeCompare(a.created))||[];
+ const currentRun=completed.find(run=>run.id===chosenRun)||completed[0];
+ const current=useQuery({queryKey:['run',currentRun?.id],queryFn:()=>api.run(currentRun!.id),enabled:!!currentRun});
+ const priorOptions=completed.filter(run=>run.id!==currentRun?.id&&run.as_of_date<=(currentRun?.as_of_date||''));
+ const priorRun=comparisonChoice==='none'?undefined:comparisonChoice==='auto'?priorOptions.find(run=>run.as_of_date!==currentRun?.as_of_date):priorOptions.find(run=>run.id===comparisonChoice);
+ const previous=useQuery({queryKey:['run',priorRun?.id],queryFn:()=>api.run(priorRun!.id),enabled:!!priorRun});
+ if(runs.isLoading||current.isLoading)return <Loading/>;
+ if(!currentRun)return <Empty title="No completed liquidity calculation" description="Create a cash-flow run to investigate its bank-format ladder." action={<Button variant="contained" onClick={()=>nav('/new')}>New calculation</Button>}/>;
+ if(current.error)return <ErrorMessage error={current.error}/>;
+ const result=current.data?.result;
+ if(!result)return <Empty title="Liquidity calculation not available" description="Return to run history and check the calculation status." action={<Button onClick={()=>nav('/runs')}>Run history</Button>}/>;
+ const currency=result.currencies.includes(chosenCurrency)?chosenCurrency:result.currencies.includes(entity?.base_currency||'')?entity!.base_currency:result.currencies[0]||'JOD';
+ const availableBehavioral=!!result.behavioral_bank_ladder?.[currency];
+ const effectiveBasis=basis==='behavioral'&&availableBehavioral?'behavioral':'contractual';
+ const profile=buildLiquidityProfile(ladderFor(result,currency,effectiveBasis),mode);
+ const priorResult=previous.data?.result;
+ const priorProfile=priorResult?buildLiquidityProfile(ladderFor(priorResult,currency,effectiveBasis),mode):null;
+ const weakest=profile?.buckets.reduce((min,bucket)=>bucket.cumulativeAfter<min.cumulativeAfter?bucket:min,profile.buckets[0]);
+ const selected=profile?.buckets.find(bucket=>bucket.code===selectedCode)||weakest;
+ const firstDeficit=profile?.buckets.find(bucket=>bucket.cumulativeAfter<0);
+ const biggest=profile?.buckets.reduce((max,bucket)=>bucket.outflows+bucket.offBalance>max.outflows+max.offBalance?bucket:max,profile.buckets[0]);
+ const priorBucket=profile&&selected?comparableBucket(profile,priorProfile,selected.code):null;
+ const compare=priorBucket&&selected?bucketMovement(selected,priorBucket):[];
+ const movements=priorBucket&&profile&&priorProfile&&selected?lineMovement(profile.ladder,priorProfile.ladder,selected.index,mode):[];
+ const contributors=profile&&selected?lineContributors(profile.ladder,selected.index,mode):[];
+ const ladderLink=(row?:string)=>`/results/${currentRun.id}?tab=ladder&currency=${encodeURIComponent(currency)}&basis=${effectiveBasis}&mode=${mode}&bucket=${encodeURIComponent(selected?.code||'')}${row?`&row=${encodeURIComponent(row)}`:''}`;
+ const exportCsv=()=>{
+  if(!profile)return;
+  const blob=new Blob([liquidityCsv(profile,currency,effectiveBasis,mode,result.as_of_date)],{type:'text/csv;charset=utf-8'});
+  const href=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=href;link.download=`liquidity-analytics-${result.as_of_date}-${currency}-${effectiveBasis}-${mode}.csv`;
+  document.body.appendChild(link);link.click();link.remove();window.setTimeout(()=>URL.revokeObjectURL(href),1000);
+ };
+
+ return <>
+  <PageHeading title="Liquidity analytics" subtitle="Trace a maturity-bucket position from its source lines to the approved bank-format ladder." action={<Stack direction="row" gap={1} flexWrap="wrap"><Button variant="outlined" startIcon={<DownloadRounded/>} disabled={!profile} onClick={exportCsv}>Export view</Button><Button variant="contained" endIcon={<ArrowForwardRounded/>} onClick={()=>nav(ladderLink())}>Open ladder</Button></Stack>}/>
+  <ErrorMessage error={runs.error||previous.error}/>
+  {result.rejected_count>0&&<Alert severity="warning" sx={{mb:2}}>{result.rejected_count} contracts were excluded. <Button size="small" onClick={()=>nav(`/results/${currentRun.id}?tab=controls`)}>Review controls</Button></Alert>}
+  <Card sx={{p:{xs:2.2,md:2.8},mb:2.4,color:'white',background:'linear-gradient(115deg,#102B42 0%,#185568 55%,#257F77 100%)',border:0}}><Stack direction={{xs:'column',md:'row'}} justifyContent="space-between" alignItems={{md:'center'}} gap={1.5}><Box><Typography variant="overline" sx={{color:'#B5E7DC',letterSpacing:1.5}}>POSITION INTELLIGENCE</Typography><Typography variant="h5" fontWeight={750}>Where is the liquidity pressure building?</Typography><Typography variant="body2" sx={{color:'#D6E8E9',mt:.65}}>Select a bucket in the chart or table. Its numbers, product lines and historical bridge update together.</Typography></Box><Chip label={`${entity?.name||'Entity'} · ${dateLabel(result.as_of_date)}${entity?.is_mock?' · demo':''}`} sx={{bgcolor:'#D9F2E9',color:'#175C57',fontWeight:700}}/></Stack></Card>
+  <Card sx={{p:2,mb:2.4}}><Stack direction="row" gap={1.4} flexWrap="wrap" alignItems="center">
+   <Select size="small" value={currentRun.id} onChange={event=>{setRun(event.target.value);setSelectedCode('');setComparisonChoice('auto')}} inputProps={{'aria-label':'Calculation date'}} sx={{minWidth:185}}>{completed.map(run=><MenuItem key={run.id} value={run.id}>{dateLabel(run.as_of_date)} · {run.id.slice(0,8)}</MenuItem>)}</Select>
+   <Select size="small" value={currency} onChange={event=>{setCurrency(event.target.value);setSelectedCode('')}} inputProps={{'aria-label':'Original currency'}} sx={{minWidth:130}}>{result.currencies.map(item=><MenuItem key={item} value={item}>{item} · original</MenuItem>)}</Select>
+   <ToggleButtonGroup exclusive size="small" value={effectiveBasis} onChange={(_,value:CashFlowBasis|null)=>{if(value){setBasis(value);setSelectedCode('')}}}><ToggleButton value="contractual">Contractual</ToggleButton><ToggleButton value="behavioral" disabled={!availableBehavioral}>Behavioural</ToggleButton></ToggleButtonGroup>
+   <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_,value:CashFlowMode|null)=>value&&setMode(value)}><ToggleButton value="principal">Principal</ToggleButton><ToggleButton value="total">Principal + interest</ToggleButton></ToggleButtonGroup>
+   <Select size="small" value={comparisonChoice} onChange={event=>setComparisonChoice(event.target.value)} inputProps={{'aria-label':'Compare with previous run'}} sx={{minWidth:180,ml:{lg:'auto'}}}><MenuItem value="auto">Compare previous date</MenuItem><MenuItem value="none">No comparison</MenuItem>{priorOptions.filter(run=>run.as_of_date!==currentRun.as_of_date).map(run=><MenuItem key={run.id} value={run.id}>{dateLabel(run.as_of_date)} · {run.id.slice(0,8)}</MenuItem>)}</Select>
+  </Stack></Card>
+  {!profile?<Alert severity="info">This run does not contain a compatible bank-format ladder for {currency}. Recalculate to unlock reconciled analysis.</Alert>:<>
+   {!profile.reconciled&&<Alert severity="error" sx={{mb:2}}>The ladder totals do not reconcile to its gap rows. Investigate the saved result before using this analysis.</Alert>}
+   <Box sx={{display:'grid',gridTemplateColumns:{xs:'repeat(2,minmax(0,1fr))',lg:'repeat(5,minmax(0,1fr))'},gap:1.5,mb:2.5}}>
+    <Figure label="Lowest cumulative gap" value={compact(weakest?.cumulativeAfter||0)} full={money(weakest?.cumulativeAfter||0,currency)} note={`${weakest?.label} · ${currency} · after capacity`} tone={(weakest?.cumulativeAfter||0)<0?red:green}/>
+    <Figure label="First negative bucket" value={firstDeficit?.label||'None modelled'} note="Cumulative after capacity" tone={firstDeficit?red:green}/>
+    <Figure label="Peak obligations" value={compact((biggest?.outflows||0)+(biggest?.offBalance||0))} full={money((biggest?.outflows||0)+(biggest?.offBalance||0),currency)} note={`${biggest?.label} · ${currency} · outflows + off-balance-sheet`}/>
+    <Figure label="Capacity position" value={compact(profile.capacityBalance)} full={money(profile.capacityBalance,currency)} note={`${currency} · Balance as of ${dateLabel(result.as_of_date)} · principal only`}/>
+    <Figure label="Selected-bucket cushion" value={selected?.cushionPercent===null||!selected?'N/A':`${selected.cushionPercent.toFixed(1)}%`} note={`${selected?.label||'—'} · management metric, not LCR`} tone={(selected?.cushionPercent||0)<0?red:green}/>
+   </Box>
+   <Box sx={{display:'grid',gridTemplateColumns:{xs:'1fr',lg:'minmax(0,1.8fr) minmax(340px,1fr)'},gap:2.5,mb:2.5}}>
+    <Card><SectionHead title="Maturity runway" subtitle="Cumulative gap before and after counterbalancing capacity"/>
+     <Box height={310} px={1.2} pb={1}><ResponsiveContainer width="100%" height="100%"><AreaChart data={profile.buckets} onClick={state=>{const point=(state as {activePayload?:{payload?:{code:string}}[]})?.activePayload?.[0]?.payload;if(point)setSelectedCode(point.code)}} margin={{left:0,right:18,bottom:5}}><defs><linearGradient id="liquidityAfterCapacity" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#298D7E" stopOpacity={.27}/><stop offset="100%" stopColor="#298D7E" stopOpacity={.01}/></linearGradient></defs><CartesianGrid vertical={false} stroke="#E7EEF3" strokeDasharray="3 4"/><XAxis dataKey="label" tick={{fontSize:10}} interval="preserveStartEnd"/><YAxis width={65} tickFormatter={(value:number)=>compact(value)} tick={{fontSize:10}}/><ReferenceLine y={0} stroke={red} strokeDasharray="4 4"/><Tooltip formatter={(value)=>money(Number(value),currency)}/><Legend wrapperStyle={{fontSize:11}}/><Area dataKey="cumulativeBefore" name="Before capacity" type="monotone" stroke="#8294A8" fill="transparent" strokeWidth={2} activeDot={{r:5}}/><Area dataKey="cumulativeAfter" name="After capacity" type="monotone" stroke={green} fill="url(#liquidityAfterCapacity)" strokeWidth={3} activeDot={{r:6}}/></AreaChart></ResponsiveContainer></Box>
+     <Divider/><Typography variant="caption" color="text.secondary" px={2.3} py={1.3} display="block">The cumulative view sums scheduled bucket contributions. Capacity availability, encumbrance and reuse are not independently verified here.</Typography>
+    </Card>
+    <Card><SectionHead title={`Explain ${selected?.label||'bucket'}`} subtitle="Every amount comes from the same saved ladder"/>
+     <Stack px={2.4} pb={2.4} gap={1.15}>{selected&&<>
+      {([['Inflows',selected.inflows],['− Outflows',-selected.outflows],['− Off-balance-sheet',-selected.offBalance],['+ Counterbalancing capacity',selected.capacity]] as const).map(([label,value])=><Stack key={label} direction="row" justifyContent="space-between" gap={1}><Typography variant="body2" color="text.secondary">{label}</Typography><Typography variant="body2" fontWeight={700}>{money(value,currency)}</Typography></Stack>)}
+      <Divider/><Stack direction="row" justifyContent="space-between"><Typography variant="body2" fontWeight={750}>Bucket gap after capacity</Typography><Typography variant="body2" fontWeight={800} color={selected.gapAfter<0?red:green}>{money(selected.gapAfter,currency)}</Typography></Stack>
+      <Stack direction="row" justifyContent="space-between"><Typography variant="body2" color="text.secondary">Cumulative after capacity</Typography><Typography variant="body2" fontWeight={700}>{money(selected.cumulativeAfter,currency)}</Typography></Stack>
+      <Typography variant="caption" color="text.secondary">Bucket cushion = gap after capacity ÷ (outflows + off-balance-sheet). {selected.cushionPercent===null?'No obligations in this bucket, so the percentage is N/A.':'This is not regulatory LCR.'}</Typography>
+      <Button variant="outlined" size="small" sx={{alignSelf:'start',mt:1}} endIcon={<OpenInNewRounded/>} onClick={()=>nav(ladderLink())}>Locate bucket in ladder</Button>
+     </>}</Stack>
+    </Card>
+   </Box>
+   <Box sx={{display:'grid',gridTemplateColumns:{xs:'1fr',lg:'minmax(0,1.15fr) minmax(0,1fr)'},gap:2.5,mb:2.5}}>
+    <Card><SectionHead title="Scheduled flows and capacity" subtitle="Select a bar to inspect that bucket"/>
+     <Box height={255} px={1} pb={1}><ResponsiveContainer width="100%" height="100%"><BarChart data={profile.buckets} onClick={state=>{const point=(state as {activePayload?:{payload?:{code:string}}[]})?.activePayload?.[0]?.payload;if(point)setSelectedCode(point.code)}}><CartesianGrid vertical={false} stroke="#E7EEF3" strokeDasharray="3 4"/><XAxis dataKey="label" tick={{fontSize:9}} interval="preserveStartEnd"/><YAxis tickFormatter={(value:number)=>compact(value)} tick={{fontSize:10}} width={65}/><Tooltip formatter={(value)=>money(Number(value),currency)}/><Legend wrapperStyle={{fontSize:10}}/><Bar dataKey="inflows" name="Inflows" fill={green} maxBarSize={16}/><Bar dataKey="outflows" name="Outflows" fill="#6688C9" maxBarSize={16}/><Bar dataKey="offBalance" name="Off-balance-sheet" fill="#C18B50" maxBarSize={16}/><Bar dataKey="capacity" name="Capacity" fill="#54ACC4" maxBarSize={16}/></BarChart></ResponsiveContainer></Box>
+    </Card>
+    <Card><SectionHead title="Movement bridge" subtitle={priorBucket?`${dateLabel(priorRun!.as_of_date)} → ${dateLabel(currentRun.as_of_date)} · ${selected?.label}`:'Compare with an earlier date to see what changed'}/>
+     <Box px={2.4} pb={2.5}>{comparisonChoice==='none'?<Alert severity="info">Historical comparison is switched off.</Alert>:previous.isLoading?<Typography variant="body2">Loading prior run…</Typography>:!priorRun?<Alert severity="info">No earlier completed reporting date is available.</Alert>:!priorBucket?<Alert severity="info">The earlier run has a different currency, bucket configuration or missing ladder. It cannot be compared safely.</Alert>:<>
+      <Stack direction="row" justifyContent="space-between" mb={1.6}><Typography variant="body2">Prior bucket gap</Typography><Typography variant="body2" fontWeight={700}>{money(priorBucket.gapAfter,currency)}</Typography></Stack>
+      {compare.map(item=><Stack key={item.label} direction="row" justifyContent="space-between" gap={1} mb={1.3}><Typography variant="body2" color="text.secondary">{item.label} effect</Typography><Typography variant="body2" fontWeight={700} color={item.movement<0?red:green}>{money(item.movement,currency)}</Typography></Stack>)}
+      <Divider sx={{my:1.5}}/><Stack direction="row" justifyContent="space-between"><Typography variant="body2" fontWeight={750}>Current bucket gap</Typography><Typography variant="body2" fontWeight={750}>{money(selected!.gapAfter,currency)}</Typography></Stack>
+      {priorResult?.behavioral_assumption_set?.version!==result.behavioral_assumption_set?.version&&effectiveBasis==='behavioral'&&<Alert severity="warning" sx={{mt:2}}>Assumption-set versions differ; movement may reflect rule changes.</Alert>}
+      <Typography variant="caption" color="text.secondary" display="block" mt={1.5}>The bridge is an exact arithmetic breakdown, not a claim about the business cause.</Typography>
+     </>}</Box>
+    </Card>
+   </Box>
+   <Box sx={{display:'grid',gridTemplateColumns:{xs:'1fr',lg:'minmax(0,1.25fr) minmax(0,.75fr)'},gap:2.5,mb:2.5}}>
+    <Card><SectionHead title="What makes up this bucket?" subtitle={`${selected?.label} · click a line to inspect its product types`} action={<Chip size="small" icon={<InsightsRounded/>} label="Ladder-backed"/>}/>
+     <Box px={2} pb={2.2}>{sectionOrder.map(section=>{const lines=contributors?.filter(item=>item.section===section)||[];if(!lines.length)return null;return <Accordion key={`${selected?.code}-${section}`} disableGutters elevation={0} sx={{border:'1px solid #E6EBF1',borderRadius:'8px !important',mb:1,'&:before':{display:'none'}}}><AccordionSummary expandIcon={<ExpandMoreRounded/>}><Stack direction="row" justifyContent="space-between" width="100%" pr={1}><Typography variant="subtitle2">{sectionNames[section]}</Typography><Typography variant="body2" fontWeight={750}>{money(lines.reduce((sum,item)=>sum+item.amount,0),currency)}</Typography></Stack></AccordionSummary><AccordionDetails sx={{pt:0}}>{lines.map(line=><Box key={line.key} sx={{py:1,borderTop:'1px solid #EEF1F4'}}><Stack direction="row" justifyContent="space-between" gap={1} alignItems="center"><Button size="small" onClick={()=>nav(ladderLink(line.key))} endIcon={<ArrowForwardRounded sx={{fontSize:14}}/>} sx={{textTransform:'none',justifyContent:'start',textAlign:'left'}}>{line.label}</Button><Typography variant="body2" fontWeight={700}>{money(line.amount,currency)}</Typography></Stack>{line.childrenInBucket.map(child=><Stack key={child.key} direction="row" justifyContent="space-between" pl={2.2} py={.3}><Typography variant="caption" color="text.secondary">{child.label}</Typography><Typography variant="caption" fontWeight={650}>{money(child.amount,currency)}</Typography></Stack>)}</Box>)}</AccordionDetails></Accordion>})}{!contributors?.length&&<Typography variant="body2" color="text.secondary">No scheduled product line is present in this bucket.</Typography>}</Box>
+    </Card>
+    <Card><SectionHead title="Largest line movements" subtitle="Same bucket versus selected earlier run"/>
+     <Stack px={2.4} pb={2.5} gap={1.4}>{priorBucket?movements.slice(0,6).map(item=><Box key={item.key}><Stack direction="row" justifyContent="space-between" gap={1}><Typography variant="body2">{item.label}</Typography><Typography variant="body2" fontWeight={750} color={item.contribution<0?red:green}>{money(item.contribution,currency)}</Typography></Stack><Typography variant="caption" color="text.secondary">{sectionNames[item.section]} · change in gap contribution</Typography></Box>):<Typography variant="body2" color="text.secondary">Select a comparable earlier run to see individual movements.</Typography>}{priorBucket&&!movements.length&&<Typography variant="body2" color="text.secondary">No product-line movement in this bucket.</Typography>}</Stack>
+    </Card>
+   </Box>
+   <Card sx={{mb:3}}><SectionHead title="Maturity pressure monitor" subtitle="Choose a row to update every chart and explanation" action={<Button size="small" onClick={()=>setShowAll(!showAll)}>{showAll?'Show key buckets':'Show all buckets'}</Button>}/>
+    <TableContainer><Table size="small"><TableHead><TableRow>{['Bucket','Inflows','Outflows + off-balance-sheet','Capacity','Gap after capacity','Cumulative after capacity','Cushion %'].map((heading,index)=><TableCell key={heading} align={index?'right':'left'}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{(showAll?profile.buckets:[...profile.buckets].sort((a,b)=>a.cumulativeAfter-b.cumulativeAfter).slice(0,6)).map(bucket=><TableRow key={bucket.code} hover selected={bucket.code===selected?.code} onClick={()=>setSelectedCode(bucket.code)} sx={{cursor:'pointer'}}><TableCell sx={{fontWeight:750}}>{bucket.label}</TableCell><TableCell align="right">{money(bucket.inflows,currency)}</TableCell><TableCell align="right">{money(bucket.outflows+bucket.offBalance,currency)}</TableCell><TableCell align="right">{money(bucket.capacity,currency)}</TableCell><TableCell align="right" sx={{color:bucket.gapAfter<0?red:green,fontWeight:650}}>{money(bucket.gapAfter,currency)}</TableCell><TableCell align="right" sx={{color:bucket.cumulativeAfter<0?red:green,fontWeight:750}}>{money(bucket.cumulativeAfter,currency)}</TableCell><TableCell align="right">{bucket.cushionPercent===null?'N/A':`${bucket.cushionPercent.toFixed(1)}%`}</TableCell></TableRow>)}</TableBody></Table></TableContainer>
+   </Card>
+   <Typography variant="caption" color="text.secondary" display="block" mb={2}>Cash-flow basis changes timing, not the underlying portfolio population. Balance as of {dateLabel(result.as_of_date)} is principal only. These indicators are management measures, not LCR, NSFR or an approved risk-appetite test.</Typography>
+  </>}
  </>;
 }
