@@ -69,6 +69,10 @@ export type Flow = {
   remaining_principal: string;
   bucket: string;
 };
+export type BehavioralFlow = Flow & {
+  behavioral_source?: string;
+  behavioral_rule_title?: string;
+};
 export type RunContract = {
   contract_id: string;
   product: string;
@@ -130,6 +134,8 @@ export type Result = Validation & {
   summary: Record<string, Bucket[]>;
   bank_ladder: Record<string, BankLadder>;
   behavioral_bank_ladder?: Record<string, BankLadder>;
+  behavioral_summary?: Record<string, Bucket[]>;
+  behavioral_cashflow_count?: number;
   calculation_basis?: "contractual" | "behavioral";
   behavioral_assumption_set?: {
     id: number;
@@ -137,6 +143,13 @@ export type Result = Validation & {
     version: number;
     effective_date: string;
     source: string;
+  } | null;
+  behavioral_engine?: {
+    adjusted_contracts: number;
+    cashflow_count: number;
+    assumption_set?: string | null;
+    version?: number | string | null;
+    interest_treatment: string;
   } | null;
   interest_projection: "constant" | "forward_curve";
   basis: string;
@@ -160,8 +173,7 @@ export type LiquidityAssumption = {
     | "deposit_runoff"
     | "term_deposit_early_withdrawal"
     | "loan_prepayment"
-    | "facility_drawdown"
-    | "rollover"
+    | "term_deposit_rollover"
     | "security_liquidation"
     | "security_haircut";
   title: string;
@@ -175,7 +187,7 @@ export type LiquidityAssumption = {
     timing?: string;
     haircut?: string;
     rollover_rate?: string;
-    rollover_days?: number;
+    tenor_days?: number;
   };
   enabled: boolean;
   sort_order: number;
@@ -197,7 +209,7 @@ export type ProductCatalogueChoice = {
   classification: string;
   product_group: string;
   product_type: string;
-  cash_flow_treatment: "contractual" | "behavioral" | "hybrid" | "excluded";
+  cashflow_treatment: "contractual" | "behavioral" | "hybrid";
   treatment_note: string;
 };
 export type NcrRow = {
@@ -297,6 +309,64 @@ export type RegulatoryDriverDetail = {
     metric_impact_pp: string;
     share_of_movement: string | null;
   }[];
+};
+export type RegulatoryLine = {
+  section: string;
+  code: string;
+  label: string;
+  source_balance: string;
+  weighted_amount: string;
+};
+export type RegulatoryContribution = {
+  contract_id: string;
+  product: string;
+  currency: string;
+  maturity_band: string;
+  source_balance: string;
+  factor: string;
+  weighted_amount: string;
+};
+export type RegulatoryCalculation = {
+  id: number;
+  created: string;
+  as_of_date: string;
+  engine_version: string;
+  methodology_version?: string | null;
+  lcr_result: {
+    ratio: string | null;
+    hqla: string;
+    gross_outflows: string;
+    gross_inflows: string;
+    eligible_inflows: string;
+    net_cash_outflows: string;
+    lines: RegulatoryLine[];
+  };
+  nsfr_result: {
+    ratio: string | null;
+    asf: string;
+    rsf: string;
+    lines: RegulatoryLine[];
+  };
+  controls: {
+    reporting_currency: string;
+    complete_mapping: boolean;
+    mapped_contract_count: number;
+    source_contract_count: number;
+    warning_count: number;
+    source_balance_converted: string;
+    mapped_balance_converted: string;
+  };
+  warnings: { contract_id: string; message: string }[];
+};
+export type RegulatoryMapping = {
+  id: number;
+  source_product: string;
+  liquidity_group?: string | null;
+  liquidity_product?: string | null;
+  title: string;
+  lcr_treatment: Record<string, unknown>;
+  nsfr_treatment: Record<string, unknown>;
+  source: string;
 };
 export type StressRule = {
   name: string;

@@ -4,6 +4,7 @@ import type {
   Input,
   Run,
   Flow,
+  BehavioralFlow,
   Validation,
   Session,
   EntitySettings,
@@ -17,6 +18,9 @@ import type {
   RegulatoryDrivers,
   RegulatoryMovement,
   RegulatoryDriverDetail,
+  RegulatoryCalculation,
+  RegulatoryContribution,
+  RegulatoryMapping,
   StressConfig,
   LcrStressResults,
   StressRun,
@@ -103,14 +107,31 @@ export const api = {
   saveProductTreatment: (
     entity: string,
     id: number,
-    data: Pick<
-      ProductCatalogueChoice,
-      "cash_flow_treatment" | "treatment_note"
-    >,
+    cashflowTreatment: ProductCatalogueChoice["cashflow_treatment"],
   ) =>
     request<ProductCatalogueChoice>(
       `/entities/${entity}/product-catalogue/${id}`,
-      { method: "PATCH", body: JSON.stringify(data) },
+      { method: "PATCH", body: JSON.stringify({ cashflow_treatment: cashflowTreatment }) },
+    ),
+  regulatoryCalculations: (entity: string) =>
+    request<RegulatoryCalculation[]>(`/entities/${entity}/regulatory/calculations`),
+  regulatoryMappings: (entity: string) =>
+    request<RegulatoryMapping[]>(`/entities/${entity}/regulatory/mappings`),
+  regulatoryConfig: (entity: string) =>
+    request<Record<string, unknown>>(`/entities/${entity}/regulatory/config`),
+  calculateRegulatory: (entity: string) =>
+    request<RegulatoryCalculation>(`/entities/${entity}/regulatory/calculations`, {
+      method: "POST",
+      body: "{}",
+    }),
+  regulatoryContributions: (
+    entity: string,
+    calculationId: number,
+    metric: "LCR" | "NSFR",
+    lineCode: string,
+  ) =>
+    request<RegulatoryContribution[]>(
+      `/entities/${entity}/regulatory/calculations/${calculationId}/contributions?metric=${metric}&line=${encodeURIComponent(lineCode)}`,
     ),
   ncrReport: (entity: string) =>
     request<NcrReport>(`/entities/${entity}/ncr-report`),
@@ -250,6 +271,10 @@ export const api = {
   flows: (id: string, contract: string, offset = 0) =>
     request<{ total: number; cashflows: Flow[] }>(
       `/runs/${id}/cashflows?contract_id=${encodeURIComponent(contract)}&limit=100&offset=${offset}`,
+    ),
+  behavioralFlows: (id: string, contract: string, offset = 0) =>
+    request<{ total: number; cashflows: BehavioralFlow[] }>(
+      `/runs/${id}/behavioral-cashflows?contract_id=${encodeURIComponent(contract)}&limit=100&offset=${offset}`,
     ),
   contracts: (id: string, q: string) =>
     request<{ query: string; contracts: RunContract[] }>(
