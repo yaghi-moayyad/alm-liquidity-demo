@@ -24,6 +24,10 @@ OPTIONAL = {'annual_rate', 'rate_type', 'repayment', 'day_count', 'frequency_mon
             'interest_rate_index', 'client_rate_spread', 'rate_cap', 'rate_floor',
             'liquidity_product', 'liquidity_group', 'maturity_source',
             'cashflows',
+            # Source-data readiness metadata is intentionally carried beside
+            # canonical terms. It is resolved into run-only terms before the
+            # engine schedules any payments and never changes source data.
+            'data_quality', 'source_date_candidates', 'readiness_resolution',
             # Immutable staging lineage is retained with the canonical input
             # and run snapshot, but never influences cash-flow mathematics.
             'source_table', 'source_file', 'source_row', 'source_batch_id', 'source_reference'}
@@ -68,7 +72,7 @@ def year_fraction(start, end, convention):
 def validate_config(payload, max_contracts=None):
     if not isinstance(payload, dict):
         raise ValueError('Request must be a JSON object')
-    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve', 'calculation_basis', 'behavioral_assumption_set', 'use_saved_portfolio', 'calculation_source', 'portfolio_snapshot', 'proxy_maturity_policy'}
+    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve', 'calculation_basis', 'behavioral_assumption_set', 'use_saved_portfolio', 'calculation_source', 'portfolio_snapshot', 'proxy_maturity_policy', 'data_readiness_resolutions'}
     if unknown:
         raise ValueError('Unknown request fields: ' + ', '.join(sorted(unknown)))
     asof = parse_date(payload.get('as_of_date'), 'as_of_date')

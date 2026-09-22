@@ -44,6 +44,7 @@ export type Input = {
   contracts?: Contract[];
   use_saved_portfolio?: boolean;
   calculation_basis?: "contractual" | "behavioral";
+  data_readiness_resolutions?: DataReadinessResolution[];
 };
 export type PortfolioSummary = {
   entity: Entity;
@@ -103,6 +104,24 @@ export type Control = {
   passed: boolean;
 };
 export type Exception = { row: number; contract_id: string; error: string };
+export type DataReadinessResolution = {
+  group_key: string;
+  action: "use_candidate_date" | "set_next_payment_date" | "derive_from_reporting_date" | "proxy_maturity" | "exclude";
+  date?: string;
+  candidate_field?: string;
+};
+export type DataReadinessGroup = {
+  key: string;
+  source_table: string;
+  product: string;
+  issue: string;
+  issue_label: string;
+  contract_count: number;
+  balances: Record<string, string>;
+  candidate_fields: string[];
+  allowed_actions: DataReadinessResolution["action"][];
+  examples: string[];
+};
 export type Validation = {
   accepted_count: number;
   rejected_count: number;
@@ -115,6 +134,7 @@ export type Validation = {
     balance: string;
     reason: string;
   }[];
+  readiness_groups: DataReadinessGroup[];
 };
 export type LadderDetail = {
   key: string;

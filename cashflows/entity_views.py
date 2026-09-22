@@ -326,7 +326,7 @@ def validate_portfolio(request):
         result=preflight_saved_portfolio(serializer.validated_data)
     else:
         result=calculate(hydrate_run_payload(serializer.validated_data))
-    return Response({k:result[k] for k in ('accepted_count','rejected_count','cashflow_count','exceptions','controls','undated')})
+    return Response({k:result[k] for k in ('accepted_count','rejected_count','cashflow_count','exceptions','controls','undated','readiness_groups')})
 
 @extend_schema(responses=SessionSerializer)
 @api_view(['GET'])

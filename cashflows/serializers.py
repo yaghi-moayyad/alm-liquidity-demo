@@ -14,6 +14,8 @@ class RunInputSerializer(serializers.Serializer):
     use_saved_portfolio = serializers.BooleanField(default=False, required=False,
         help_text='Retrieve the selected entity portfolio on the server. Required for bank-scale calculations.')
     calculation_basis = serializers.ChoiceField(choices=['contractual','behavioral'], default='contractual', required=False)
+    data_readiness_resolutions = serializers.ListField(child=serializers.JSONField(), required=False, default=list,
+        help_text='Run-only, grouped resolutions for source-data exceptions. Source portfolio data is never changed.')
 
     def to_internal_value(self, data):
         if isinstance(data,Mapping):
@@ -35,6 +37,17 @@ class RunInputSerializer(serializers.Serializer):
             raise serializers.ValidationError({'contracts':'Provide contracts or select use_saved_portfolio.'})
         if saved and not PortfolioContract.objects.filter(entity=entity).exists():
             raise serializers.ValidationError({'portfolio':'The saved portfolio is empty.'})
+        allowed_actions={'use_candidate_date','set_next_payment_date','derive_from_reporting_date','proxy_maturity','exclude'}
+        for index,resolution in enumerate(attrs.get('data_readiness_resolutions',[]),start=1):
+            if not isinstance(resolution,dict):
+                raise serializers.ValidationError({'data_readiness_resolutions':f'Resolution {index} must be an object.'})
+            unknown=set(resolution)-{'group_key','action','date','candidate_field'}
+            if unknown or not isinstance(resolution.get('group_key'),str) or resolution.get('action') not in allowed_actions:
+                raise serializers.ValidationError({'data_readiness_resolutions':f'Resolution {index} needs group_key and an approved action.'})
+            if resolution.get('action') in {'set_next_payment_date','proxy_maturity'} and not resolution.get('date'):
+                raise serializers.ValidationError({'data_readiness_resolutions':f'Resolution {index} needs a next-payment date.'})
+            if resolution.get('action')=='use_candidate_date' and not resolution.get('candidate_field'):
+                raise serializers.ValidationError({'data_readiness_resolutions':f'Resolution {index} needs a source date field.'})
         attrs['as_of_date']=attrs['as_of_date'].isoformat()
         try: validate_config(attrs)
         except (ValueError,TypeError) as exc:
@@ -252,6 +265,7 @@ class ValidationResponseSerializer(serializers.Serializer):
     exceptions=serializers.ListField(child=serializers.JSONField())
     controls=serializers.ListField(child=serializers.JSONField())
     undated=serializers.ListField(child=serializers.JSONField())
+    readiness_groups=serializers.ListField(child=serializers.JSONField(),required=False)
 
 class SessionSerializer(serializers.Serializer):
     username=serializers.CharField()

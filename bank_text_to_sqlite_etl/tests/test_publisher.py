@@ -57,6 +57,21 @@ class PublisherMappingTests(unittest.TestCase):
                 "currency_column": "CURRENCY", "accrual_start_column": "ORIGINDATE", "maturity_column": "MATURITYDATE",
             }, date(2026, 9, 21))
 
+    def test_preserves_invalid_coupon_dates_for_calculation_time_resolution(self):
+        row = self.row(
+            CONTRACTREFERENCE="LN-LONG", PRINCIPAL="100000", CURRENCY="JOD", PRODUCTTYPE="Corporate",
+            ORIGINDATE="20200101", NEXTINTERESTPAYMENTDATE="20261001", MATURITYDATE="20280101",
+            FIXEDRATE="6.5", _etl_source_row="2",
+        )
+        result = publisher.map_contract(row, {
+            "name": "Legacy auto mapping", "id_prefix": "EQ-LN", "product": "loan", "principal_column": "PRINCIPAL",
+            "currency_column": "CURRENCY", "liquidity_product_column": "PRODUCTTYPE", "liquidity_group": "Loans",
+            "annual_rate_column": "FIXEDRATE", "annual_rate_scale": "percent", "frequency_months": 3,
+            "accrual_start_column": "ORIGINDATE", "next_payment_column": "MATURITYDATE", "maturity_column": "MATURITYDATE",
+        }, date(2026, 9, 21))
+        self.assertEqual(result["source_date_candidates"]["NEXTINTERESTPAYMENTDATE"], "2026-10-01")
+        self.assertIn("first accrual period exceeds 370 days", result["data_quality"]["issues"])
+
     def test_dry_run_reads_completed_stage_batch_and_writes_report(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

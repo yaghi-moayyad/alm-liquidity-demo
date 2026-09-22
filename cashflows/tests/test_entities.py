@@ -59,6 +59,25 @@ class EntityTests(TestCase):
         self.assertEqual(r.data['accepted_count'],11)
         self.assertEqual(CalculationRun.objects.count(),0)
 
+    def test_saved_portfolio_data_readiness_resolves_one_group_without_changing_source_terms(self):
+        entity=Entity.objects.get(slug='jordan-mock')
+        terms={'contract_id':'bank-long-accrual','product':'loan','currency':'JOD','principal':'100.000',
+            'annual_rate':'0.06','repayment':'bullet','day_count':'ACT/365F','frequency_months':12,
+            'accrual_start':'2020-01-01','next_payment':'2028-01-01','maturity':'2028-01-01',
+            'source_table':'CommercialLendingJordanContract','source_date_candidates':{'NEXTINTERESTPAYMENTDATE':'2026-10-01'}}
+        stored=PortfolioContract.objects.create(entity=entity,external_id='bank-long-accrual',terms=terms)
+        payload={'entity':entity.slug,'as_of_date':entity.configuration.as_of_date.isoformat(),
+                 'bucket_days':entity.configuration.bucket_days,'use_saved_portfolio':True}
+        readiness=self.client.post('/api/v1/validate',payload,format='json')
+        self.assertEqual(readiness.status_code,200,readiness.data)
+        group=next(item for item in readiness.data['readiness_groups'] if item['source_table']=='CommercialLendingJordanContract')
+        payload['data_readiness_resolutions']=[{'group_key':group['key'],'action':'use_candidate_date','candidate_field':'NEXTINTERESTPAYMENTDATE'}]
+        resolved=self.client.post('/api/v1/validate',payload,format='json')
+        self.assertEqual(resolved.status_code,200,resolved.data)
+        self.assertFalse(any(item['key']==group['key'] for item in resolved.data['readiness_groups']))
+        stored.refresh_from_db()
+        self.assertEqual(stored.terms,terms)  # run-only adjustment; source is unchanged
+
     def test_saved_portfolio_run_snapshots_terms_without_putting_contracts_in_run_json(self):
         entity=Entity.objects.get(slug='jordan-mock')
         payload={'entity':entity.slug,'as_of_date':entity.configuration.as_of_date.isoformat(),

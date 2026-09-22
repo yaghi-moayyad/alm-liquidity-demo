@@ -137,6 +137,14 @@ def parse_source_date(value: Any, field: str) -> str:
     raise PublishError(f"{field} must be a valid bank date (YYYYMMDD or YYYY-MM-DD), got {value!r}")
 
 
+def optional_source_date(value: Any) -> str | None:
+    """Normalise a date candidate without rejecting the full source row."""
+    try:
+        return parse_source_date(value, "source date")
+    except PublishError:
+        return None
+
+
 def decimal_value(value: Any, field: str) -> Decimal:
     try:
         parsed = Decimal(str(value).replace(",", "").strip())
@@ -281,22 +289,52 @@ def map_contract(row: sqlite3.Row, rule: dict[str, Any], as_of: date) -> dict[st
     frequency = rule.get("frequency_months")
     if frequency not in (1, 3, 6, 12):
         raise PublishError(f"Rule {name!r}: frequency_months must be one of 1, 3, 6, 12")
+    # Preserve useful source-date candidates beside the calculation terms. They
+    # let the ALM application offer a governed, calculation-time choice for an
+    # exception group after import. Raw bank rows remain unchanged.
+    configured_candidates=rule.get("candidate_date_columns") or []
+    common_candidates={"NEXTINTERESTPAYMENTDATE","INTERESTBREAKINGDATE","PRINCIPALBREAKINGDATE","MATURITYDATE","ORIGINDATE","BALANCESHEETDATE"}
+    candidate_columns=[]
+    for column in [*configured_candidates,*[key for key in row.keys() if str(key).upper() in common_candidates]]:
+        if column in row.keys() and column not in candidate_columns:
+            candidate_columns.append(column)
+    candidates={column:normalised for column in candidate_columns if (normalised:=optional_source_date(row[column]))}
+
+    dates={}
+    date_errors=[]
+    for target,config_key in (("accrual_start","accrual_start_column"),("next_payment","next_payment_column"),("maturity","maturity_column")):
+        raw=required_column(row, rule[config_key], name)
+        parsed=optional_source_date(raw)
+        if parsed:
+            dates[target]=parsed
+        else:
+            date_errors.append(f"{target} is missing or invalid")
+
     contract.update({
         "annual_rate": format(annual_rate, "f"),
         "rate_type": rate_type,
         "repayment": rule.get("repayment", "bullet"),
         "day_count": rule.get("day_count", "ACT/365F"),
         "frequency_months": frequency,
-        "accrual_start": parse_source_date(required_column(row, rule["accrual_start_column"], name), "accrual_start"),
-        "next_payment": parse_source_date(required_column(row, rule["next_payment_column"], name), "next_payment"),
-        "maturity": parse_source_date(required_column(row, rule["maturity_column"], name), "maturity"),
         "end_of_month": bool(rule.get("end_of_month", False)),
+        "source_date_candidates": candidates,
     })
-    start = date.fromisoformat(contract["accrual_start"])
-    next_payment = date.fromisoformat(contract["next_payment"])
-    maturity = date.fromisoformat(contract["maturity"])
-    if not start <= as_of < next_payment <= maturity:
-        raise PublishError("dates must meet accrual_start ≤ as_of_date < next_payment ≤ maturity")
+    contract.update(dates)
+    if len(dates)==3:
+        start = date.fromisoformat(dates["accrual_start"])
+        next_payment = date.fromisoformat(dates["next_payment"])
+        maturity = date.fromisoformat(dates["maturity"])
+        if not start <= as_of < next_payment <= maturity:
+            date_errors.append("dates must meet accrual_start ≤ as_of_date < next_payment ≤ maturity")
+        elif (next_payment-start).days>370:
+            date_errors.append("first accrual period exceeds 370 days")
+    if date_errors:
+        contract["data_quality"]={
+            "status":"needs_resolution",
+            "issues":date_errors,
+            "source_date_candidates":candidates,
+            "mapping_rule":name,
+        }
     return contract
 
 
