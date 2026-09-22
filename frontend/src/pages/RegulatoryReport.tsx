@@ -61,7 +61,7 @@ import type {
   RegulatoryDriverDetail,
   RegulatoryMovement,
 } from "../types";
-import { movementNarrative, movementSummary } from "../regulatoryNarrative";
+import { movementNarrative, movementSummary, movementTooltipSummary } from "../regulatoryNarrative";
 
 type Kind = "lcr" | "nsfr";
 
@@ -340,8 +340,8 @@ export default function RegulatoryReport({ kind }: { kind: Kind }) {
                       tickLine={false}
                     />
                     <Tooltip
-                      formatter={(value: any) => `${Number(value).toFixed(2)}%`}
-                      labelFormatter={(label) => `As of ${label}`}
+                      content={<TrendTooltip kind={kind} movements={movementHistory.data?.movements || []} />}
+                      cursor={{ stroke: "#9EB4E8", strokeDasharray: "3 4" }}
                     />
                     <Line
                       dataKey="ratio"
@@ -433,6 +433,19 @@ export default function RegulatoryReport({ kind }: { kind: Kind }) {
       />
     </>
   );
+}
+
+function TrendTooltip({kind,movements,active,payload}:{kind:Kind;movements:RegulatoryMovement[];active?:boolean;payload?:Array<{payload?:{as_of_date:string;label:string;ratio:number}}>} ){
+ const point=payload?.[0]?.payload;
+ if(!active||!point) return null;
+ const movement=movements.find(item=>item.as_of_date===point.as_of_date);
+ const delta=Number(movement?.delta_pp||0);
+ return <Box sx={{maxWidth:330,p:1.45,bgcolor:'#FFFFFF',border:'1px solid #D7E2F4',borderRadius:1.5,boxShadow:'0 10px 28px rgba(27,49,75,.16)'}}>
+  <Typography variant="caption" color="text.secondary" fontWeight={700}>AS OF {point.label}</Typography>
+  <Typography variant="subtitle2" fontWeight={800} mt={.2}>{kind.toUpperCase()}: {point.ratio.toFixed(1)}%</Typography>
+  {movement&&<Typography variant="caption" color={delta>=0?'success.main':'error.main'} fontWeight={800} display="block" mt={.55}>{delta>=0?'+':''}{delta.toFixed(1)} pp vs {dateLabel(movement.comparison_date)}</Typography>}
+  <Typography variant="caption" color="text.secondary" display="block" mt={.55} sx={{lineHeight:1.45}}>{movementTooltipSummary(movement)}</Typography>
+ </Box>;
 }
 
 function MovementNarrativeCard({kind,movement,currency,entityName,onInspect}:{kind:Kind;movement?:RegulatoryMovement;currency:string;entityName?:string;onInspect:()=>void}){

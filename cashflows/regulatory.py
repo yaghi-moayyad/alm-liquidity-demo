@@ -193,15 +193,40 @@ def regulatory_movement_history(entity, report_type):
         report=regulatory_report(entity,report_type,snapshot.as_of_date)
         prior_report=regulatory_report(entity,report_type,snapshots[index-1].as_of_date)
         ratio_key='lcr' if report_type=='lcr' else 'nsfr'
-        drivers=regulatory_drivers(entity,report_type,snapshot.as_of_date)
-        ranked=sorted(drivers['drivers'],key=lambda driver:abs(_d(driver['ratio_impact'])),reverse=True)
+        headline_drivers=regulatory_drivers(entity,report_type,snapshot.as_of_date)
+        # The two headline components (HQLA/NCO or ASF/RSF) reconcile the
+        # ratio, but they are not useful management commentary on their own.
+        # Expand each one to its report-line components so the trend tooltip
+        # can say, for example, "higher Stable Deposits", not merely
+        # "higher net cash outflows".
+        drivers=[]
+        for headline in headline_drivers['drivers']:
+            detail=regulatory_driver_detail(entity,report_type,snapshot.as_of_date,headline['detail_key'])
+            for item in detail['items']:
+                impact_pp=_d(item['metric_impact_pp'])
+                if not impact_pp:
+                    continue
+                drivers.append({
+                    'label':item['source_line_item'],
+                    'amount':item['balance_change'],
+                    'ratio_impact':str(impact_pp/D(100)),
+                    # Keep the headline key for backwards compatibility with
+                    # existing consumers; source_key identifies the real line.
+                    'detail_key':headline['detail_key'],
+                    'source_key':item['id'],
+                })
+        # Retain the reconciled headline drivers if a source snapshot contains
+        # no individual line movement at all.
+        if not drivers:
+            drivers=headline_drivers['drivers']
+        ranked=sorted(drivers,key=lambda driver:abs(_d(driver['ratio_impact'])),reverse=True)
         movements.append({
             'as_of_date':snapshot.as_of_date.isoformat(),
             'comparison_date':snapshots[index-1].as_of_date.isoformat(),
             'ratio':report[ratio_key],
             'delta_pp':str((_d(report[ratio_key])-_d(prior_report[ratio_key]))*D(100)),
             'primary_driver':ranked[0] if ranked else None,
-            'drivers':drivers['drivers'],
-            'reconciled':drivers['reconciled'],
+            'drivers':drivers,
+            'reconciled':headline_drivers['reconciled'],
         })
     return movements

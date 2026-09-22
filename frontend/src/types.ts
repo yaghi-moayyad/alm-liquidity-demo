@@ -259,6 +259,7 @@ export type RegulatoryDrivers = {
     amount: string;
     ratio_impact: string;
     detail_key: string;
+    source_key?: string;
   }[];
   reconciled: boolean;
 };

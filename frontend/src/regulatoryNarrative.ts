@@ -1,5 +1,5 @@
 import type {RegulatoryMovement} from './types';
-import {dateLabel,money} from './api';
+import {dateLabel} from './api';
 
 type Kind='lcr'|'nsfr';
 
@@ -14,14 +14,22 @@ const labels:{[K in Kind]:{ratio:string;components:Record<string,{subject:string
  }},
 };
 
-function componentFor(kind:Kind,key:string){
- if(kind==='lcr') return key==='hqla'?labels.lcr.components.hqla:labels.lcr.components.net_cash_outflows;
- return key==='asf'?labels.nsfr.components.asf:labels.nsfr.components.rsf;
+function driverPhrase(driver:RegulatoryMovement['drivers'][number]){
+ return `${Number(driver.amount)>=0?'higher':'lower'} ${driver.label}`;
 }
 
-function driverKey(kind:Kind,driver:RegulatoryMovement['drivers'][number]){
- if(kind==='lcr') return driver.detail_key==='hqla'?'hqla':'net_cash_outflows';
- return driver.detail_key==='asf'?'asf':'rsf';
+function impactText(driver:RegulatoryMovement['drivers'][number]){
+ const impact=Number(driver.ratio_impact)*100;
+ return `${impact>=0?'+':''}${impact.toFixed(1)} pp`;
+}
+
+function rankedDrivers(movement:RegulatoryMovement){
+ const drivers=movement.drivers.filter(driver=>Number.isFinite(Number(driver.ratio_impact))&&Number(driver.ratio_impact)!==0);
+ const movementSign=Math.sign(Number(movement.delta_pp));
+ const ranked=drivers.slice().sort((a,b)=>Math.abs(Number(b.ratio_impact))-Math.abs(Number(a.ratio_impact)));
+ const main=ranked.find(driver=>movementSign===0||Math.sign(Number(driver.ratio_impact))===movementSign)||ranked[0];
+ const offset=main?ranked.find(driver=>Math.sign(Number(driver.ratio_impact))!==Math.sign(Number(main.ratio_impact))):undefined;
+ return {main,offset};
 }
 
 export function movementNarrative(kind:Kind,movement:RegulatoryMovement|undefined,currency:string,entityName?:string){
@@ -30,23 +38,23 @@ export function movementNarrative(kind:Kind,movement:RegulatoryMovement|undefine
  const changed=Number(movement.delta_pp), up=changed>=0;
  const subject=entityName?`${entityName}'s ${ratio}`:`${ratio}`;
  const headline=`${subject} ${up?'increased':'decreased'} by ${Math.abs(changed).toFixed(1)} percentage points, from ${dateLabel(movement.comparison_date)} to ${dateLabel(movement.as_of_date)}.`;
- const ranked=[...movement.drivers].sort((a,b)=>Math.abs(Number(b.ratio_impact))-Math.abs(Number(a.ratio_impact))).slice(0,2);
- if(!ranked.length) return headline;
- const detail=ranked.map((driver,index)=>{
-  const amount=Number(driver.amount), impact=Number(driver.ratio_impact)*100;
-  const component=componentFor(kind,driverKey(kind,driver));
-  const verb=amount>=0?component.increase:component.decrease;
-  const effect=impact>=0?'added':'reduced';
-  const prefix=index===0?'The main contributor was':'The other material contributor was';
-  return `${prefix} ${component.subject} ${verb} by ${money(Math.abs(amount),currency)}, which ${effect} ${ratio} by ${Math.abs(impact).toFixed(2)} pp.`;
- }).join(' ');
+ const {main,offset}=rankedDrivers(movement);
+ if(!main) return headline;
+ const detail=`Mainly ${driverPhrase(main)} (${impactText(main)})${offset?`; partly offset by ${driverPhrase(offset)} (${impactText(offset)}).`:'.'}`;
  return `${headline} ${detail}`;
 }
 
 export function movementSummary(kind:Kind,movement:RegulatoryMovement|undefined,currency:string){
  if(!movement) return 'No prior month is available for comparison.';
- const changed=Number(movement.delta_pp), first=[...movement.drivers].sort((a,b)=>Math.abs(Number(b.ratio_impact))-Math.abs(Number(a.ratio_impact)))[0];
- if(!first) return `${changed>=0?'+':''}${changed.toFixed(1)} pp.`;
- const component=componentFor(kind,driverKey(kind,first));
- return `${changed>=0?'+':''}${changed.toFixed(1)} pp · ${component.subject} ${Number(first.amount)>=0?component.increase:component.decrease} ${money(Math.abs(Number(first.amount)),currency)}`;
+ const changed=Number(movement.delta_pp), {main}=rankedDrivers(movement);
+ if(!main) return `${changed>=0?'+':''}${changed.toFixed(1)} pp.`;
+ return `${changed>=0?'+':''}${changed.toFixed(1)} pp · ${driverPhrase(main)}`;
+}
+
+/** Compact, source-line explanation for a trend-chart hover tooltip. */
+export function movementTooltipSummary(movement:RegulatoryMovement|undefined){
+ if(!movement) return 'First available snapshot — no prior period to compare.';
+ const {main,offset}=rankedDrivers(movement);
+ if(!main) return 'No material source-line movement was identified.';
+ return `Mainly ${driverPhrase(main)} (${impactText(main)})${offset?`; partly offset by ${driverPhrase(offset)} (${impactText(offset)}).`:'.'}`;
 }
