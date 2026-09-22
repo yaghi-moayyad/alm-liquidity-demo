@@ -41,8 +41,26 @@ export type Input = {
   entity: string;
   as_of_date: string;
   bucket_days: number[];
-  contracts: Contract[];
+  contracts?: Contract[];
+  use_saved_portfolio?: boolean;
   calculation_basis?: "contractual" | "behavioral";
+};
+export type PortfolioSummary = {
+  entity: Entity;
+  as_of_date: string;
+  bucket_days: number[];
+  revision: number;
+  contract_count: number;
+  currencies: string[];
+  products: string[];
+  product_count: number;
+  missing_maturity_count: number;
+};
+export type PortfolioContractPage = {
+  total: number;
+  offset: number;
+  limit: number;
+  contracts: Contract[];
 };
 export type Bucket = {
   bucket: string;
@@ -68,6 +86,7 @@ export type Flow = {
   total: string;
   remaining_principal: string;
   bucket: string;
+  maturity_source?: "bank" | "proxy" | "open";
 };
 export type RunContract = {
   contract_id: string;
@@ -152,6 +171,9 @@ export type EntitySettings = {
   as_of_date: string;
   interest_projection: "constant" | "forward_curve";
   forward_curve: ForwardCurvePoint[];
+  proxy_maturity_enabled: boolean;
+  proxy_maturity_date: string | null;
+  proxy_maturity_scope: Record<string, unknown>;
   updated: string;
 };
 export type LiquidityAssumption = {

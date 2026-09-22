@@ -1,6 +1,8 @@
 import type {
   Entity,
   Portfolio,
+  PortfolioSummary,
+  PortfolioContractPage,
   Input,
   Run,
   Flow,
@@ -86,13 +88,26 @@ export const api = {
     }),
   portfolio: (entity: string) =>
     request<Portfolio>(`/entities/${entity}/portfolio`),
+  portfolioSummary: (entity: string) =>
+    request<PortfolioSummary>(`/entities/${entity}/portfolio?summary=1`),
+  portfolioContracts: (entity: string, params: {q?: string; currency?: string; product?: string; offset?: number; limit?: number} = {}) => {
+    const query=new URLSearchParams();
+    for(const [key,value] of Object.entries(params)) if(value!==undefined&&value!=='') query.set(key,String(value));
+    const suffix=query.toString();
+    return request<PortfolioContractPage>(`/entities/${entity}/portfolio-contracts${suffix?`?${suffix}`:''}`);
+  },
   settings: (entity: string) =>
     request<EntitySettings>(`/entities/${entity}/settings`),
   saveSettings: (
     entity: string,
-    data: Pick<EntitySettings, "interest_projection" | "forward_curve">,
+    data: Pick<EntitySettings, "interest_projection" | "forward_curve" | "proxy_maturity_enabled" | "proxy_maturity_date" | "proxy_maturity_scope">,
   ) =>
     request<EntitySettings>(`/entities/${entity}/settings`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  saveCalculationDefaults: (entity: string, data: Pick<PortfolioSummary, "as_of_date" | "bucket_days">) =>
+    request<Pick<PortfolioSummary, "as_of_date" | "bucket_days" | "revision">>(`/entities/${entity}/calculation-defaults`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),

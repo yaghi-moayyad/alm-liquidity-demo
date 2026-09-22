@@ -4,8 +4,13 @@ from calendar import monthrange
 from decimal import Decimal, localcontext, ROUND_HALF_UP
 import re
 
-VERSION = '0.5.0'
+VERSION = '0.8.0'
 MAX_CONTRACTS = 2000
+# Browser-supplied contract arrays remain deliberately small.  Saved bank
+# portfolios are retrieved server-side and can use the separately governed
+# ceiling below; production PostgreSQL workers can override it by environment
+# in a later deployment profile without changing the public API.
+MAX_SAVED_PORTFOLIO_CONTRACTS = 3_000_000
 MAX_PERIODS = 1200
 D = Decimal
 PRODUCTS = {'loan': 'inflow', 'bond': 'inflow', 'interbank_asset': 'inflow', 'cash_central_bank': 'inflow',
@@ -17,7 +22,11 @@ REQUIRED = {'contract_id', 'product', 'currency', 'principal'}
 OPTIONAL = {'annual_rate', 'rate_type', 'repayment', 'day_count', 'frequency_months',
             'accrual_start', 'next_payment', 'maturity', 'end_of_month', 'status',
             'interest_rate_index', 'client_rate_spread', 'rate_cap', 'rate_floor',
-            'liquidity_product', 'liquidity_group'}
+            'liquidity_product', 'liquidity_group', 'maturity_source',
+            'cashflows',
+            # Immutable staging lineage is retained with the canonical input
+            # and run snapshot, but never influences cash-flow mathematics.
+            'source_table', 'source_file', 'source_row', 'source_batch_id', 'source_reference'}
 
 
 def decimal(value, name):
@@ -56,10 +65,10 @@ def year_fraction(start, end, convention):
     raise ValueError('day_count must be ACT/360, ACT/365F or 30E/360')
 
 
-def validate_config(payload):
+def validate_config(payload, max_contracts=None):
     if not isinstance(payload, dict):
         raise ValueError('Request must be a JSON object')
-    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve', 'calculation_basis', 'behavioral_assumption_set'}
+    unknown = set(payload) - {'as_of_date', 'entity', 'bucket_days', 'contracts', 'interest_projection', 'forward_curve', 'calculation_basis', 'behavioral_assumption_set', 'use_saved_portfolio', 'calculation_source', 'portfolio_snapshot', 'proxy_maturity_policy'}
     if unknown:
         raise ValueError('Unknown request fields: ' + ', '.join(sorted(unknown)))
     asof = parse_date(payload.get('as_of_date'), 'as_of_date')
@@ -72,8 +81,9 @@ def validate_config(payload):
             or buckets != sorted(set(buckets))):
         raise ValueError('bucket_days must be 1–30 strictly increasing positive integer day boundaries (maximum 36500)')
     contracts = payload.get('contracts')
-    if not isinstance(contracts, list) or not 1 <= len(contracts) <= MAX_CONTRACTS:
-        raise ValueError(f'Provide between 1 and {MAX_CONTRACTS} contracts')
+    limit = max_contracts if max_contracts is not None else (MAX_SAVED_PORTFOLIO_CONTRACTS if payload.get('calculation_source') == 'saved_portfolio' else MAX_CONTRACTS)
+    if not isinstance(contracts, list) or not 1 <= len(contracts) <= limit:
+        raise ValueError(f'Provide between 1 and {limit:,} contracts')
     return asof, entity, buckets, contracts
 
 
@@ -130,15 +140,74 @@ def schedule(contract, asof, settings=None):
         raise ValueError('Overdue/defaulted contracts require separate rules and are not supported yet')
     if contract.get('rate_type', 'fixed') not in ('fixed', 'floating'):
         raise ValueError('rate_type must be fixed or floating')
-    if contract.get('rate_type', 'fixed') == 'floating' and (not settings_provided or 'interest_projection' not in settings):
+    if contract.get('rate_type', 'fixed') == 'floating' and not contract.get('cashflows') and (not settings_provided or 'interest_projection' not in settings):
         raise ValueError('Floating rates require an agreed projection convention')
+    maturity_source = str(contract.get('maturity_source') or ('bank' if contract.get('maturity') else 'open'))
+    if maturity_source not in ('bank', 'proxy', 'open'):
+        raise ValueError('maturity_source must be bank, proxy or open')
     base = {'contract_id': cid, 'product': product, 'currency': currency,
-            'direction': PRODUCTS[product], 'principal': str(principal.quantize(quantum))}
+            'direction': PRODUCTS[product], 'principal': str(principal.quantize(quantum)),
+            'maturity_source': maturity_source}
     if contract.get('liquidity_product'):
         base['liquidity_product'] = str(contract['liquidity_product'])
     if contract.get('liquidity_group'):
         base['liquidity_group'] = str(contract['liquidity_group'])
+    if 'cashflows' in contract:
+        events=contract['cashflows']
+        if not isinstance(events,list) or not 1<=len(events)<=MAX_PERIODS:
+            raise ValueError(f'cashflows must contain between 1 and {MAX_PERIODS} explicit payment events')
+        allowed_event_fields={'payment_date','principal','interest','accrual_start','accrual_end'}
+        balance=principal; flows=[]; prior=asof
+        for number,event in enumerate(events, start=1):
+            if not isinstance(event,dict):
+                raise ValueError(f'cashflows[{number}] must be an object')
+            unknown_event=set(event)-allowed_event_fields
+            if unknown_event:
+                raise ValueError(f'cashflows[{number}] has unsupported fields: {", ".join(sorted(unknown_event))}')
+            due=parse_date(event.get('payment_date'),'cashflows payment_date')
+            if due<=asof or due<=prior:
+                raise ValueError('Explicit cash-flow payment dates must be strictly increasing and after the reporting date')
+            repayment=decimal(event.get('principal',0),'cashflows principal')
+            interest=decimal(event.get('interest',0),'cashflows interest')
+            if repayment<0 or interest<0:
+                raise ValueError('Explicit cash-flow principal and interest cannot be negative')
+            if repayment>balance:
+                raise ValueError('Explicit cash-flow principal exceeds the remaining contractual principal')
+            if repayment!=repayment.quantize(quantum) or interest!=interest.quantize(quantum):
+                raise ValueError(f'Explicit cash-flow amounts must respect the {currency} currency precision {quantum}')
+            accrual_start=parse_date(event.get('accrual_start',prior.isoformat()),'cashflows accrual_start')
+            accrual_end=parse_date(event.get('accrual_end',due.isoformat()),'cashflows accrual_end')
+            if accrual_start>accrual_end or accrual_end>due:
+                raise ValueError('Explicit cash-flow accrual dates must satisfy accrual_start ≤ accrual_end ≤ payment_date')
+            balance-=repayment
+            flows.append({'contract_id':cid,'product':product,'currency':currency,'direction':base['direction'],
+                'payment_date':due.isoformat(),'accrual_start':accrual_start.isoformat(),'accrual_end':accrual_end.isoformat(),
+                'days_from_asof':(due-asof).days,'principal':str(repayment.quantize(quantum)),
+                'interest':str(interest.quantize(quantum)),'total':str((repayment+interest).quantize(quantum)),
+                'remaining_principal':str(balance.quantize(quantum)),
+                'liquidity_product':base.get('liquidity_product',''),'liquidity_group':base.get('liquidity_group',''),
+                'maturity_source':maturity_source})
+            prior=due
+        base.update({'repayment':'bank_cashflow_schedule','payments':len(flows),
+            'principal_check':balance==0,'total_interest':str(sum((D(flow['interest']) for flow in flows),D(0)).quantize(quantum))})
+        return base,flows,None
     if product in ('demand_deposit', 'cash_central_bank', 'undrawn_commitment', 'undrawn_uncommitted', 'trade_finance'):
+        if maturity_source == 'proxy':
+            due = parse_date(contract.get('maturity'), 'proxy maturity')
+            if due <= asof:
+                raise ValueError('Proxy maturity must be after the reporting date')
+            flow = {'contract_id': cid, 'product': product, 'currency': currency,
+                    'direction': base['direction'], 'payment_date': due.isoformat(),
+                    'accrual_start': asof.isoformat(), 'accrual_end': due.isoformat(),
+                    'days_from_asof': (due - asof).days, 'principal': str(principal.quantize(quantum)),
+                    'interest': str(D(0).quantize(quantum)), 'total': str(principal.quantize(quantum)),
+                    'remaining_principal': str(D(0).quantize(quantum)),
+                    'liquidity_product': base.get('liquidity_product', ''),
+                    'liquidity_group': base.get('liquidity_group', ''),
+                    'maturity_source': 'proxy'}
+            base.update({'repayment': 'proxy_maturity', 'payments': 1, 'principal_check': True,
+                         'total_interest': str(D(0).quantize(quantum))})
+            return base, [flow], None
         if set(contract) & {'annual_rate', 'repayment', 'day_count', 'frequency_months',
                             'accrual_start', 'next_payment', 'maturity', 'end_of_month'}:
             raise ValueError('Undated demand deposits accept balance fields only; dated terms need separate rules')
@@ -220,7 +289,8 @@ def schedule(contract, asof, settings=None):
                       'total': str((repay + interest).quantize(quantum)),
                       'remaining_principal': str(balance.quantize(quantum)),
                       'liquidity_product': base.get('liquidity_product', ''),
-                      'liquidity_group': base.get('liquidity_group', '')})
+                      'liquidity_group': base.get('liquidity_group', ''),
+                      'maturity_source': maturity_source})
     base.update({'repayment': method, 'day_count': contract['day_count'], 'payments': len(flows),
                  'principal_check': sum(D(f['principal']) for f in flows) == principal,
                  'total_interest': str(sum((D(f['interest']) for f in flows), D(0)).quantize(quantum))})
@@ -279,7 +349,7 @@ def calculate(payload, progress=None):
                     if isinstance(val,D): row[key] = str(val.quantize(PRECISION[cur]))
         controls = []
         for cur in currencies:
-            scheduled = sum((D(c['principal']) for c in accepted if c['currency']==cur and c['product'] not in ('demand_deposit','cash_central_bank')),D(0))
+            scheduled = sum((D(c['principal']) for c in accepted if c['currency']==cur and (c['product'] not in ('demand_deposit','cash_central_bank') or c.get('maturity_source') == 'proxy')),D(0))
             generated = sum((D(f['principal']) for f in flows if f['currency']==cur),D(0))
             open_total = sum((D(u['balance']) for u in undated if u['currency']==cur and u.get('product') == 'demand_deposit'),D(0))
             controls.append({'currency':cur,'scheduled_balance':str(scheduled.quantize(PRECISION[cur])),

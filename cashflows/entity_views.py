@@ -1,6 +1,6 @@
 from copy import deepcopy
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.http import HttpResponse
@@ -11,9 +11,9 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError,APIException
 from drf_spectacular.utils import extend_schema,OpenApiTypes
 from .models import Entity,EntityConfiguration,PortfolioContract,LiquidityAssumptionSet,LiquidityAssumption,ProductCatalogueItem,RegulatorySnapshot,LcrStressConfiguration,LcrStressRun
-from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
+from .serializers import EntitySerializer,PortfolioInputSerializer,PortfolioResponseSerializer,PortfolioContractQuerySerializer,RunInputSerializer,ValidationResponseSerializer,SessionSerializer,EntitySettingsSerializer,CalculationDefaultsSerializer,LiquidityAssumptionSetSerializer,LiquidityAssumptionSerializer,ProductCatalogueChoiceSerializer,ProductTreatmentSerializer
 from .engine import DEFAULT_BUCKETS,calculate
-from .services import hydrate_run_payload
+from .services import hydrate_run_payload, preflight_saved_portfolio
 from .regulatory import ncr_report,regulatory_report,regulatory_series,regulatory_drivers,regulatory_movement_history,regulatory_driver_detail
 from .regulatory_export import lcr_xlsx,nsfr_xlsx
 from .lcr_stress import default_configuration,normalise,calculate as calculate_lcr_stress,xlsx as lcr_stress_xlsx,DEFAULT_TOP,DEFAULTS
@@ -58,9 +58,50 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
                 entity.portfolio_contracts.all().delete()
                 PortfolioContract.objects.bulk_create([PortfolioContract(entity=entity,external_id=c['contract_id'],terms=c) for c in values['contracts']],batch_size=500)
         config=EntityConfiguration.objects.get(entity=entity)
+        # Bank portfolios are never loaded into the calculation browser.  The
+        # summary endpoint is intentionally lightweight and exposes only safe
+        # aggregate facts needed to submit a server-side run.
+        if request.query_params.get('summary') in ('1','true','yes'):
+            currencies=set(); products=set(); missing_maturity=0
+            for terms in entity.portfolio_contracts.values_list('terms',flat=True).iterator(chunk_size=5_000):
+                currencies.add(str(terms.get('currency') or '').upper())
+                products.add(str(terms.get('product') or ''))
+                if not str(terms.get('maturity') or '').strip(): missing_maturity += 1
+            return Response({'entity':EntitySerializer(self.get_queryset().get(pk=entity.pk)).data,
+                'as_of_date':config.as_of_date.isoformat(),'bucket_days':config.bucket_days,'revision':config.revision,
+                'contract_count':entity.portfolio_contracts.count(),'currencies':sorted(item for item in currencies if item),
+                'products':sorted(item for item in products if item),
+                'product_count':len(products - {''}),'missing_maturity_count':missing_maturity})
         data={'entity':EntitySerializer(self.get_queryset().get(pk=entity.pk)).data,'contracts':list(entity.portfolio_contracts.values_list('terms',flat=True)),
               'as_of_date':config.as_of_date.isoformat(),'bucket_days':config.bucket_days,'revision':config.revision}
         return Response(data)
+
+    @extend_schema(methods=['GET'],responses=OpenApiTypes.OBJECT)
+    @action(detail=True,methods=['get'],url_path='portfolio-contracts')
+    def portfolio_contracts(self,request,slug=None):
+        """Page through a bank portfolio without copying all terms to React."""
+        entity=self.get_object()
+        filters=PortfolioContractQuerySerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        values=filters.validated_data
+        contracts=PortfolioContract.objects.filter(entity=entity).order_by('external_id')
+        currency=values.get('currency')
+        product=values.get('product')
+        query=values.get('q','').strip()
+        if currency:
+            contracts=contracts.filter(terms__currency=currency)
+        if product:
+            contracts=contracts.filter(terms__product=product)
+        if query:
+            contracts=contracts.filter(
+                Q(external_id__icontains=query) |
+                Q(terms__liquidity_product__icontains=query) |
+                Q(terms__liquidity_group__icontains=query)
+            )
+        total=contracts.count()
+        offset,limit=values['offset'],values['limit']
+        return Response({'total':total,'offset':offset,'limit':limit,
+            'contracts':list(contracts.values_list('terms',flat=True)[offset:offset+limit])})
 
     @extend_schema(methods=['GET'],responses=EntitySettingsSerializer)
     @extend_schema(methods=['PUT'],request=EntitySettingsSerializer,responses=EntitySettingsSerializer)
@@ -71,8 +112,20 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
         if request.method == 'PUT':
             serializer=EntitySettingsSerializer(config,data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            serializer.save(revision=config.revision+1)
         return Response(EntitySettingsSerializer(config).data)
+
+    @extend_schema(methods=['PUT'],request=CalculationDefaultsSerializer,responses=CalculationDefaultsSerializer)
+    @action(detail=True,methods=['put'],url_path='calculation-defaults')
+    def calculation_defaults(self,request,slug=None):
+        """Persist calculation date/buckets without shipping a portfolio to the client."""
+        entity=self.get_object()
+        with transaction.atomic():
+            config=EntityConfiguration.objects.select_for_update().get(entity=entity)
+            serializer=CalculationDefaultsSerializer(config,data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(revision=config.revision+1)
+        return Response(CalculationDefaultsSerializer(config).data)
 
     @extend_schema(methods=['GET'],responses=ProductCatalogueChoiceSerializer(many=True))
     @action(detail=True,methods=['get'],url_path='product-catalogue')
@@ -269,7 +322,10 @@ class EntityViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
 def validate_portfolio(request):
     serializer=RunInputSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    result=calculate(hydrate_run_payload(serializer.validated_data))
+    if serializer.validated_data.get('use_saved_portfolio'):
+        result=preflight_saved_portfolio(serializer.validated_data)
+    else:
+        result=calculate(hydrate_run_payload(serializer.validated_data))
     return Response({k:result[k] for k in ('accepted_count','rejected_count','cashflow_count','exceptions','controls','undated')})
 
 @extend_schema(responses=SessionSerializer)

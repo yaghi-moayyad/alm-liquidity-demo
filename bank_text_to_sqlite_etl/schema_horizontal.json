@@ -1,0 +1,229 @@
+{"tables":[
+  {"table_name":"UndrawnCommitmentJordanContractParty","source_file":"UndrawnCommitmentJordanContractParty.JoinTableImport","columns":[
+    {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"UndrawnCommitmentJordanContract","source_file":"UndrawnCommitmentJordanContract.UndrawnCommitmentContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"CONTRACTDESCRIPTION","type":"string","nullable":true},
+    {"name":"PRODUCTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTNATURE","type":"string","nullable":false}, {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false},
+    {"name":"CURRENCY","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}, {"name":"ORIGINDATE","type":"integer","nullable":false},
+    {"name":"MATURITYDATE","type":"integer","nullable":false}, {"name":"PRINCIPAL","type":"decimal","nullable":false}, {"name":"SIGNATUREDATE","type":"integer","nullable":false},
+    {"name":"DEFAULTSTATUS","type":"string","nullable":false}, {"name":"RISKWEIGHT","type":"integer","nullable":false}, {"name":"AMORTIZATIONTYPE","type":"string","nullable":false},
+    {"name":"AUTOMATICCANCELLATION","type":"boolean","nullable":false}, {"name":"AB_CODE","type":"string","nullable":false}, {"name":"AB_PRODUCTID","type":"string","nullable":true},
+    {"name":"AB_SOURCESYSTEM","type":"string","nullable":false}
+  ]},
+  {"table_name":"TreasuryJordanDataPartyContract","source_file":"TreasuryJordanDataPartyContract.JoinTableImport","columns":[
+    {"name":"ContractReference","type":"string","nullable":false}, {"name":"PartyReference","type":"string","nullable":false}
+  ]},
+  {"table_name":"TreasuryJordanDataOtherContract","source_file":"TreasuryJordanDataOtherContract.OtherContractImport","columns":[
+    {"name":"BalanceSheetDate","type":"integer","nullable":false}, {"name":"ContractReference","type":"string","nullable":false}, {"name":"ContractDescription","type":"integer","nullable":true},
+    {"name":"ProductType","type":"string","nullable":false}, {"name":"AccountReference","type":"string","nullable":true}, {"name":"AccountType","type":"string","nullable":false},
+    {"name":"AccountNature","type":"string","nullable":false}, {"name":"Book","type":"string","nullable":false}, {"name":"Balance","type":"decimal","nullable":false},
+    {"name":"ContractGroup","type":"string","nullable":false}, {"name":"Currency","type":"string","nullable":false}, {"name":"HoldingPartyReference","type":"string","nullable":false},
+    {"name":"OriginDate","type":"integer","nullable":false}, {"name":"MaturityDate","type":"integer","nullable":false}, {"name":"MTMPrice","type":"string","nullable":true},
+    {"name":"Principal","type":"decimal","nullable":false}, {"name":"SignatureDate","type":"integer","nullable":false}, {"name":"SpecificProductClass","type":"string","nullable":false},
+    {"name":"AmortizationType","type":"string","nullable":false}, {"name":"InterestRateIndex","type":"string","nullable":true}, {"name":"InterestRateType","type":"string","nullable":false},
+    {"name":"AB_Code","type":"string","nullable":true}, {"name":"AB_ProductID","type":"string","nullable":false}, {"name":"PartyReference","type":"string","nullable":false}
+  ]},
+  {"table_name":"TreasuryJordanDataMMContract","source_file":"TreasuryJordanDataMMContract.MMContractImport","columns":[
+    {"name":"BalanceSheetDate","type":"integer","nullable":false}, {"name":"ContractReference","type":"string","nullable":false}, {"name":"ContractDescription","type":"string","nullable":true},
+    {"name":"ProductType","type":"string","nullable":false}, {"name":"AccountReference","type":"string","nullable":true}, {"name":"AccountType","type":"string","nullable":false},
+    {"name":"AccountNature","type":"string","nullable":false}, {"name":"Book","type":"string","nullable":false}, {"name":"Balance","type":"decimal","nullable":false},
+    {"name":"AccruedInterestAtBSD","type":"string","nullable":true}, {"name":"Currency","type":"string","nullable":false}, {"name":"HoldingPartyReference","type":"string","nullable":false},
+    {"name":"OriginDate","type":"integer","nullable":false}, {"name":"MaturityDate","type":"integer","nullable":false}, {"name":"MTMPrice","type":"decimal","nullable":false},
+    {"name":"Principal","type":"decimal","nullable":false}, {"name":"SignatureDate","type":"integer","nullable":false}, {"name":"CurrentDelay","type":"string","nullable":true},
+    {"name":"DefaultStatus","type":"string","nullable":false}, {"name":"RiskWeight","type":"string","nullable":true}, {"name":"AccruedCoupon","type":"string","nullable":true},
+    {"name":"AmortizationType","type":"string","nullable":false}, {"name":"BuyingPrice","type":"decimal","nullable":false}, {"name":"PremiumDiscountAmortizationType","type":"string","nullable":true},
+    {"name":"PrincipalBreakingDate","type":"string","nullable":true}, {"name":"PrincipalPeriodicity","type":"string","nullable":false}, {"name":"Basis","type":"string","nullable":true},
+    {"name":"BusinessDayConvention","type":"string","nullable":true}, {"name":"ClientRateSpread","type":"string","nullable":true}, {"name":"CompoundedPeriod","type":"string","nullable":true},
+    {"name":"CompoundingBreakingDate","type":"string","nullable":true}, {"name":"ConstantAnnuityValue","type":"string","nullable":true}, {"name":"FixedRate","type":"decimal","nullable":true},
+    {"name":"FixingAtBSD","type":"decimal","nullable":true}, {"name":"FixingPeriodicity","type":"string","nullable":true}, {"name":"FixingStartingDate","type":"integer","nullable":true},
+    {"name":"IgnoreLeapYears","type":"boolean","nullable":false}, {"name":"InterestBreakingDate","type":"string","nullable":true}, {"name":"InterestCapitalized","type":"string","nullable":true},
+    {"name":"InterestMethod","type":"string","nullable":false}, {"name":"InterestPaymentDetermination","type":"string","nullable":false}, {"name":"InterestPaymentTiming","type":"string","nullable":false},
+    {"name":"InterestPeriodicity","type":"string","nullable":true}, {"name":"InterestRateIndex","type":"string","nullable":true}, {"name":"InterestRateType","type":"string","nullable":false},
+    {"name":"IsUnderTreasurerControl","type":"boolean","nullable":false}, {"name":"RetailMarketOnly","type":"string","nullable":true}, {"name":"AutomaticCancellation","type":"string","nullable":true},
+    {"name":"FacilitiesType","type":"string","nullable":true}, {"name":"IsOpRelationship","type":"boolean","nullable":false}, {"name":"IsSecurityHQ","type":"string","nullable":true},
+    {"name":"AB_Code","type":"string","nullable":true}, {"name":"AB_ProductID","type":"string","nullable":false}, {"name":"IsMarketable","type":"boolean","nullable":false},
+    {"name":"IsTransactional","type":"string","nullable":true}, {"name":"IsBacked","type":"boolean","nullable":true}, {"name":"AB_IsGuaranteedGov","type":"string","nullable":true},
+    {"name":"PartyReference","type":"string","nullable":false}, {"name":"SecurityRating","type":"string","nullable":true}
+  ]},
+  {"table_name":"TreasuryJordanDataIRSContract","source_file":"TreasuryJordanDataIRSContract.IRSContractImport","columns":[
+    {"name":"BalanceSheetDate","type":"integer","nullable":false}, {"name":"ContractReference","type":"string","nullable":false}, {"name":"ContractDescription","type":"string","nullable":true},
+    {"name":"ProductType","type":"string","nullable":false}, {"name":"AccountReference","type":"string","nullable":true}, {"name":"AccountType","type":"string","nullable":false},
+    {"name":"AccountNature","type":"string","nullable":false}, {"name":"Book","type":"string","nullable":false}, {"name":"Balance","type":"decimal","nullable":false},
+    {"name":"AccruedInterestAtBSD","type":"string","nullable":true}, {"name":"ContractGroup","type":"string","nullable":true}, {"name":"Currency","type":"string","nullable":false},
+    {"name":"HoldingPartyReference","type":"string","nullable":false}, {"name":"OriginDate","type":"integer","nullable":false}, {"name":"MaturityDate","type":"integer","nullable":false},
+    {"name":"MTMPrice","type":"string","nullable":true}, {"name":"Principal","type":"decimal","nullable":false}, {"name":"RegularizationAccountReference","type":"string","nullable":true},
+    {"name":"SignatureDate","type":"integer","nullable":false}, {"name":"SpecificProductClass","type":"string","nullable":false}, {"name":"ExposureCategory","type":"string","nullable":true},
+    {"name":"AmortizationType","type":"string","nullable":false}, {"name":"PrincipalBreakingDate","type":"string","nullable":true}, {"name":"PrincipalPeriodicity","type":"string","nullable":false},
+    {"name":"Basis","type":"string","nullable":false}, {"name":"BusinessDayConvention","type":"string","nullable":true}, {"name":"ClientRateSpread","type":"string","nullable":true},
+    {"name":"CompoundedPeriod","type":"string","nullable":true}, {"name":"CompoundingBreakingDate","type":"string","nullable":true}, {"name":"ConstantAnnuityValue","type":"string","nullable":true},
+    {"name":"FixedRate","type":"decimal","nullable":false}, {"name":"FixingAtBSD","type":"decimal","nullable":true}, {"name":"FixingPeriodicity","type":"string","nullable":true},
+    {"name":"FixingStartingDate","type":"integer","nullable":true}, {"name":"InterestBreakingDate","type":"string","nullable":true}, {"name":"InterestCapitalized","type":"string","nullable":true},
+    {"name":"InterestMethod","type":"string","nullable":false}, {"name":"InterestPaymentDetermination","type":"string","nullable":false}, {"name":"InterestPaymentTiming","type":"string","nullable":false},
+    {"name":"InterestPeriodicity","type":"string","nullable":false}, {"name":"InterestRateIndex","type":"string","nullable":true}, {"name":"InterestRateType","type":"string","nullable":false},
+    {"name":"PayBasis","type":"string","nullable":true}, {"name":"PayClientRateSpread","type":"string","nullable":true}, {"name":"PayCompoundingBreakingDate","type":"string","nullable":true},
+    {"name":"PayCompoundedPeriod","type":"string","nullable":true}, {"name":"PayInterestRateType","type":"string","nullable":true}, {"name":"PayFixedRate","type":"string","nullable":true},
+    {"name":"PayFixingPeriodicity","type":"string","nullable":true}, {"name":"PayFixingStartingDate","type":"string","nullable":true}, {"name":"PayInterestPaymentDetermination","type":"string","nullable":true},
+    {"name":"PayInterestPaymentTiming","type":"string","nullable":true}, {"name":"PayInterestBreakingDate","type":"string","nullable":true}, {"name":"PayInterestPeriodicity","type":"string","nullable":true},
+    {"name":"PayInterestRateIndex","type":"string","nullable":true}, {"name":"AB_Code","type":"string","nullable":false}, {"name":"AB_ProductID","type":"string","nullable":false},
+    {"name":"PartyReference","type":"string","nullable":false}
+  ]},
+  {"table_name":"TreasuryJordanDataFXContract","source_file":"TreasuryJordanDataFXContract.FXContractImport","columns":[
+    {"name":"BalanceSheetDate","type":"integer","nullable":false}, {"name":"ContractReference","type":"string","nullable":false}, {"name":"ContractDescription","type":"string","nullable":true},
+    {"name":"ProductType","type":"string","nullable":false}, {"name":"AccountNature","type":"string","nullable":false}, {"name":"AccountType","type":"string","nullable":false},
+    {"name":"Balance","type":"decimal","nullable":false}, {"name":"Book","type":"string","nullable":false}, {"name":"Currency","type":"string","nullable":false},
+    {"name":"HoldingPartyReference","type":"string","nullable":false}, {"name":"OriginDate","type":"integer","nullable":false}, {"name":"MaturityDate","type":"integer","nullable":false},
+    {"name":"MTMPrice","type":"string","nullable":true}, {"name":"Principal","type":"decimal","nullable":false}, {"name":"SignatureDate","type":"integer","nullable":false},
+    {"name":"SpecificProductClass","type":"string","nullable":false}, {"name":"Currency1Amount","type":"decimal","nullable":false}, {"name":"Currency2Amount","type":"decimal","nullable":false},
+    {"name":"Currency1","type":"string","nullable":false}, {"name":"Currency2","type":"string","nullable":false}, {"name":"ExchangeRateSpot","type":"decimal","nullable":false},
+    {"name":"ExchangeRteFwd","type":"decimal","nullable":true}, {"name":"BuySell","type":"string","nullable":false}, {"name":"PartyReference","type":"string","nullable":false},
+    {"name":"AB_ProductID","type":"string","nullable":false}
+  ]},
+  {"table_name":"TreasuryJordanDataCFLContract","source_file":"TreasuryJordanDataCFLContract.CFLContractImport","columns":[
+    {"name":"ContractReference","type":"string","nullable":false}, {"name":"Amount","type":"string","nullable":false}, {"name":"PaymentDate","type":"string","nullable":false},
+    {"name":"CashFlowType","type":"string","nullable":false}
+  ]},
+  {"table_name":"TreasuryJordanDataCCSContract","source_file":"TreasuryJordanDataCCSContract.CCSContractImport","columns":[
+    {"name":"BalanceSheetDate","type":"integer","nullable":false}, {"name":"ContractReference","type":"string","nullable":false}, {"name":"ContractDescription","type":"string","nullable":true},
+    {"name":"ProductType","type":"string","nullable":false}, {"name":"AccountReference","type":"string","nullable":true}, {"name":"AccountType","type":"string","nullable":false},
+    {"name":"AccountNature","type":"string","nullable":false}, {"name":"Book","type":"string","nullable":false}, {"name":"Balance","type":"decimal","nullable":false},
+    {"name":"AccruedInterestAtBSD","type":"string","nullable":true}, {"name":"ContractGroup","type":"string","nullable":true}, {"name":"Currency","type":"string","nullable":false},
+    {"name":"HoldingPartyReference","type":"string","nullable":false}, {"name":"OriginDate","type":"integer","nullable":false}, {"name":"MaturityDate","type":"integer","nullable":false},
+    {"name":"MTMPrice","type":"string","nullable":true}, {"name":"Principal","type":"decimal","nullable":false}, {"name":"RegularizationAccountReference","type":"string","nullable":true},
+    {"name":"SignatureDate","type":"integer","nullable":false}, {"name":"SpecificProductClass","type":"string","nullable":false}, {"name":"ExposureCategory","type":"string","nullable":true},
+    {"name":"AmortizationType","type":"string","nullable":false}, {"name":"PrincipalBreakingDate","type":"string","nullable":true}, {"name":"PrincipalPeriodicity","type":"string","nullable":false},
+    {"name":"Basis","type":"string","nullable":false}, {"name":"BusinessDayConvention","type":"string","nullable":false}, {"name":"ClientRateSpread","type":"string","nullable":true},
+    {"name":"CompoundedPeriod","type":"string","nullable":true}, {"name":"CompoundingBreakingDate","type":"string","nullable":true}, {"name":"ConstantAnnuityValue","type":"string","nullable":true},
+    {"name":"FixedRate","type":"decimal","nullable":false}, {"name":"FixingAtBSD","type":"string","nullable":true}, {"name":"FixingPeriodicity","type":"string","nullable":true},
+    {"name":"FixingStartingDate","type":"integer","nullable":true}, {"name":"InterestBreakingDate","type":"string","nullable":true}, {"name":"InterestCapitalized","type":"string","nullable":true},
+    {"name":"InterestMethod","type":"string","nullable":false}, {"name":"InterestPaymentDetermination","type":"string","nullable":false}, {"name":"InterestPaymentTiming","type":"string","nullable":false},
+    {"name":"InterestPeriodicity","type":"string","nullable":false}, {"name":"InterestRateIndex","type":"string","nullable":true}, {"name":"InterestRateType","type":"string","nullable":false},
+    {"name":"PayBasis","type":"string","nullable":true}, {"name":"PayClientRateSpread","type":"string","nullable":true}, {"name":"PayCompoundingBreakingDate","type":"string","nullable":true},
+    {"name":"PayCompoundedPeriod","type":"string","nullable":true}, {"name":"PayInterestRateType","type":"string","nullable":true}, {"name":"PayFixedRate","type":"string","nullable":true},
+    {"name":"PayFixingPeriodicity","type":"string","nullable":true}, {"name":"PayFixingStartingDate","type":"string","nullable":true}, {"name":"PayInterestPaymentDetermination","type":"string","nullable":true},
+    {"name":"PayInterestPaymentTiming","type":"string","nullable":true}, {"name":"PayInterestBreakingDate","type":"string","nullable":true}, {"name":"PayInterestPeriodicity","type":"string","nullable":true},
+    {"name":"PayInterestRateIndex","type":"string","nullable":true}, {"name":"AB_Code","type":"string","nullable":true}, {"name":"AB_ProductID","type":"string","nullable":false},
+    {"name":"PartyReference","type":"string","nullable":false}
+  ]},
+  {"table_name":"GLJordanContract","source_file":"GLJordanContract.GLContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"CONTRACTDESCRIPTION","type":"string","nullable":false},
+    {"name":"AB_GLDESCRIPTION","type":"string","nullable":true}, {"name":"AB_GLACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTNATURE","type":"string","nullable":false},
+    {"name":"ACCOUNTTYPE","type":"string","nullable":false}, {"name":"CURRENCY","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false},
+    {"name":"DEBITCREDITCODE","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"FinOneJordanContractParty","source_file":"FinOneJordanContractParty.JoinTableImport","columns":[
+    {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"FinOneJordanContract","source_file":"FinOneJordanContract.FinOneContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"CONTRACTDESCRIPTION","type":"string","nullable":false},
+    {"name":"PRODUCTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTNATURE","type":"string","nullable":false}, {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false},
+    {"name":"ACCRUEDINTERESTATBSD","type":"decimal","nullable":false}, {"name":"CURRENCY","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false},
+    {"name":"ORIGINDATE","type":"integer","nullable":false}, {"name":"MATURITYDATE","type":"integer","nullable":false}, {"name":"PRINCIPAL","type":"decimal","nullable":false},
+    {"name":"SIGNATUREDATE","type":"integer","nullable":false}, {"name":"CURRENTDELAY","type":"decimal","nullable":false}, {"name":"DEFAULTSTATUS","type":"string","nullable":false},
+    {"name":"RISKWEIGHT","type":"integer","nullable":false}, {"name":"AMORTIZATIONTYPE","type":"string","nullable":false}, {"name":"PRINCIPALBREAKINGDATE","type":"integer","nullable":false},
+    {"name":"PRINCIPALPERIODICITY","type":"string","nullable":false}, {"name":"BASIS","type":"string","nullable":false}, {"name":"CLIENTRATESPREAD","type":"decimal","nullable":true},
+    {"name":"COMPOUNDEDPERIOD","type":"string","nullable":true}, {"name":"COMPOUNDINGBREAKINGDATE","type":"string","nullable":true}, {"name":"CONSTANTANNUITYVALUE","type":"string","nullable":true},
+    {"name":"FIXEDRATE","type":"decimal","nullable":true}, {"name":"FIXINGATBSD","type":"decimal","nullable":true}, {"name":"FIXINGPERIODICITY","type":"string","nullable":true},
+    {"name":"FIXINGSTARTINGDATE","type":"integer","nullable":true}, {"name":"INTERESTMETHOD","type":"string","nullable":false}, {"name":"INTERESTPAYMENTDETERMINATION","type":"string","nullable":true},
+    {"name":"INTERESTPAYMENTTIMING","type":"string","nullable":false}, {"name":"INTERESTPERIODICITY","type":"string","nullable":false}, {"name":"INTERESTRATEINDEX","type":"string","nullable":true},
+    {"name":"INTERESTRATETYPE","type":"string","nullable":false}, {"name":"AB_CODE","type":"string","nullable":true}, {"name":"AB_PRODUCTID","type":"string","nullable":true},
+    {"name":"AB_SOURCESYSTEM","type":"string","nullable":true}
+  ]},
+  {"table_name":"EximbillsJordanContractParty","source_file":"EximbillsJordanContractParty.JoinTableImport","columns":[
+    {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"EximbillsJordanContract","source_file":"EximbillsJordanContract.EximbillsContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PRODUCTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTNATURE","type":"string","nullable":false},
+    {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false}, {"name":"CURRENCY","type":"string","nullable":false},
+    {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}, {"name":"FIXEDRATE","type":"decimal","nullable":false}, {"name":"INTERESTRATETYPE","type":"string","nullable":false},
+    {"name":"ORIGINDATE","type":"integer","nullable":false}, {"name":"MATURITYDATE","type":"integer","nullable":false}, {"name":"AB_CODE","type":"string","nullable":false},
+    {"name":"PRODUCTID","type":"string","nullable":true}, {"name":"AB_SOURCESYSTEM","type":"string","nullable":false}
+  ]},
+  {"table_name":"EquationJordanRating","source_file":"EquationJordanRating.RatingImport","columns":[
+    {"name":"PARTYREFERENCE","type":"string","nullable":false}, {"name":"EXTERNALRATINGREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"EquationJordanParty","source_file":"EquationJordanParty.PartyImport","columns":[
+    {"name":"PARTYREFERENCE","type":"string","nullable":false}, {"name":"PARTYDESCRIPTION","type":"string","nullable":true}, {"name":"DEFAULTSTATUS_PARTY","type":"string","nullable":false},
+    {"name":"COUNTRYCODE","type":"string","nullable":false}, {"name":"AB_ACTIVITYSECTOR","type":"string","nullable":true}, {"name":"AB_BUSINESSLINECODE","type":"string","nullable":false},
+    {"name":"AB_SOURCESYSTEM","type":"string","nullable":false}, {"name":"AB_SME_1MM","type":"string","nullable":false}
+  ]},
+  {"table_name":"EquationJordanOverdrawnOverdraftContractParty","source_file":"EquationJordanOverdrawnOverdraftContractParty.JoinTableImport","columns":[
+    {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"EquationJordanOverdrawnOverdraftContract","source_file":"EquationJordanOverdrawnOverdraftContract.EquationOverdrawnOverdraftContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PRODUCTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTNATURE","type":"string","nullable":false},
+    {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false}, {"name":"ACCRUEDINTERESTATBSD","type":"decimal","nullable":true},
+    {"name":"CURRENCY","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}, {"name":"ORIGINDATE","type":"integer","nullable":false},
+    {"name":"MATURITYDATE","type":"integer","nullable":false}, {"name":"PRINCIPAL","type":"decimal","nullable":false}, {"name":"SIGNATUREDATE","type":"string","nullable":true},
+    {"name":"DEFAULTSTATUS","type":"string","nullable":false}, {"name":"RISKWEIGHT","type":"integer","nullable":false}, {"name":"AMORTIZATIONTYPE","type":"string","nullable":false},
+    {"name":"PRINCIPALBREAKINGDATE","type":"string","nullable":true}, {"name":"PRINCIPALPERIODICITY","type":"string","nullable":true}, {"name":"BASIS","type":"string","nullable":false},
+    {"name":"CLIENTRATESPREAD","type":"string","nullable":true}, {"name":"COMPOUNDEDPERIOD","type":"string","nullable":true}, {"name":"COMPOUNDINGBREAKINGDATE","type":"string","nullable":true},
+    {"name":"FIXEDRATE","type":"decimal","nullable":true}, {"name":"FIXINGATBSD","type":"string","nullable":true}, {"name":"FIXINGPERIODICITY","type":"string","nullable":true},
+    {"name":"FIXINGSTARTINGDATE","type":"string","nullable":true}, {"name":"INTERESTMETHOD","type":"string","nullable":false}, {"name":"INTERESTBERIODICITY","type":"string","nullable":false},
+    {"name":"INTERESTRATEINDEX","type":"string","nullable":true}, {"name":"INTERESTRATETYPE","type":"string","nullable":false}, {"name":"AB_CODE","type":"string","nullable":false},
+    {"name":"PRODUCTID","type":"string","nullable":true}, {"name":"AB_SOURCESYSTEM","type":"string","nullable":false}, {"name":"RATEFLOOR","type":"decimal","nullable":true}
+  ]},
+  {"table_name":"EquationJordanLoanContractParty","source_file":"EquationJordanLoanContractParty.JoinTableImport","columns":[
+    {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"EquationJordanLoanContract","source_file":"EquationJordanLoanContract.EquationLoanContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PRODUCTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTNATURE","type":"string","nullable":false},
+    {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false}, {"name":"ACCRUEDINTERESTATBSD","type":"decimal","nullable":false},
+    {"name":"CURRENCY","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}, {"name":"ORIGINDATE","type":"integer","nullable":false},
+    {"name":"MATURITYDATE","type":"integer","nullable":false}, {"name":"MTMPRICE","type":"string","nullable":true}, {"name":"PRINCIPAL","type":"decimal","nullable":false},
+    {"name":"SIGNATUREDATE","type":"string","nullable":true}, {"name":"DEFAULTSTATUS","type":"string","nullable":false}, {"name":"RISKWEIGHT","type":"integer","nullable":false},
+    {"name":"AMORTIZATIONTYPE","type":"string","nullable":false}, {"name":"PRINCIPALBREAKINGDATE","type":"string","nullable":true}, {"name":"PRINCIPALPERIODICITY","type":"string","nullable":false},
+    {"name":"BASIS","type":"string","nullable":false}, {"name":"CLIENTRATESPREAD","type":"string","nullable":true}, {"name":"COMPOUNDEDPERIOD","type":"string","nullable":true},
+    {"name":"COMPOUNDINGBREAKINGDATE","type":"string","nullable":true}, {"name":"CONSTANTANNUITYVALUE","type":"string","nullable":true}, {"name":"FIXEDRATE","type":"decimal","nullable":false},
+    {"name":"FIXINGATBSD","type":"string","nullable":true}, {"name":"FIXINGPERIODICITY","type":"string","nullable":true}, {"name":"FIXINGSTARTINGDATE","type":"string","nullable":true},
+    {"name":"INTERESTMETHOD","type":"string","nullable":false}, {"name":"INTERESTPERIODICITY","type":"string","nullable":false}, {"name":"INTERESTRATEINDEX","type":"string","nullable":true},
+    {"name":"INTERESTRATETYPE","type":"string","nullable":false}, {"name":"AB_CODE","type":"string","nullable":false}, {"name":"PRODUCTID","type":"string","nullable":true},
+    {"name":"AB_SOURCESYSTEM","type":"string","nullable":false}
+  ]},
+  {"table_name":"EquationJordanAccountContractParty","source_file":"EquationJordanAccountContractParty.JoinTableImport","columns":[
+    {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"EquationJordanAccountContract","source_file":"EquationJordanAccountContract.EquationAccountContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PRODUCTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTNATURE","type":"string","nullable":false},
+    {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false}, {"name":"ACCRUEDINTERESTATBSD","type":"decimal","nullable":false},
+    {"name":"CURRENCY","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}, {"name":"ORIGINDATE","type":"integer","nullable":false},
+    {"name":"MATURITYDATE","type":"integer","nullable":true}, {"name":"PRINCIPAL","type":"decimal","nullable":false}, {"name":"SIGNATUREDATE","type":"integer","nullable":true},
+    {"name":"DEFAULTSTATUS","type":"string","nullable":false}, {"name":"RISKWEIGHT","type":"integer","nullable":false}, {"name":"AMORTIZATIONTYPE","type":"string","nullable":true},
+    {"name":"BASIS","type":"string","nullable":false}, {"name":"FIXEDRATE","type":"decimal","nullable":false}, {"name":"INTERESTMETHOD","type":"string","nullable":true}, {"name":"INTERESTRATETYPE","type":"string","nullable":true},
+    {"name":"INTERESTPERIODICITY","type":"string","nullable":true}, {"name":"INTERESTRATEINDEX","type":"string","nullable":true}, {"name":"AB_PRODUCTID","type":"string","nullable":true},
+    {"name":"MTMPRICE","type":"string","nullable":true}, {"name":"AB_CODE","type":"string","nullable":false}, {"name":"AB_GLBALANCE","type":"decimal","nullable":false},
+    {"name":"ISTRANSACTIONAL","type":"boolean","nullable":false}, {"name":"AB_SOURCESYSTEM","type":"string","nullable":false},
+    {"name":"ISOPRELATIONSHIP","type":"boolean","nullable":false}
+  ]},
+  {"table_name":"CommercialLendingJordanContractParty","source_file":"CommercialLendingJordanContractParty.JoinTableImport","columns":[
+    {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PARTYREFERENCE","type":"string","nullable":false}
+  ]},
+  {"table_name":"CommercialLendingJordanContract","source_file":"CommercialLendingJordanContract.CommercialLendingContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"PRODUCTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTNATURE","type":"string","nullable":false},
+    {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false}, {"name":"ACCRUEDINTERESTATBSD","type":"decimal","nullable":false},
+    {"name":"CURRENCY","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}, {"name":"ORIGINDATE","type":"integer","nullable":false},
+    {"name":"MATURITYDATE","type":"integer","nullable":false}, {"name":"PRINCIPAL","type":"decimal","nullable":false}, {"name":"SIGNATUREDATE","type":"integer","nullable":false},
+    {"name":"DEFAULTSTATUS","type":"string","nullable":false}, {"name":"RISKWEIGHT","type":"integer","nullable":false}, {"name":"AMORTIZATIONTYPE","type":"string","nullable":false},
+    {"name":"PRINCIPALBREAKINGDATE","type":"string","nullable":true}, {"name":"PRINCIPALPERIODICITY","type":"string","nullable":true}, {"name":"BASIS","type":"string","nullable":false},
+    {"name":"CLIENTRATESPREAD","type":"decimal","nullable":false}, {"name":"COMPOUNDEDPERIOD","type":"string","nullable":true}, {"name":"COMPOUNDINGBREAKINGDATE","type":"integer","nullable":false},
+    {"name":"CONSTANTANNUITYVALUE","type":"string","nullable":true}, {"name":"FIXEDRATE","type":"decimal","nullable":true}, {"name":"FIXINGATBSD","type":"decimal","nullable":true},
+    {"name":"FIXINGPERIODICITY","type":"string","nullable":true}, {"name":"FIXINGSTARTINGDATE","type":"integer","nullable":true}, {"name":"INTERESTBREAKINGDATE","type":"string","nullable":true},
+    {"name":"INTERESTCAPITALIZED","type":"string","nullable":true}, {"name":"INTERESTMETHOD","type":"string","nullable":false}, {"name":"INTERESTPERIODICITY","type":"string","nullable":false},
+    {"name":"INTERESTRATEINDEX","type":"string","nullable":true}, {"name":"INTERESTRATETYPE","type":"string","nullable":false}, {"name":"AB_CODE","type":"string","nullable":false},
+    {"name":"AB_PRODUCTID","type":"string","nullable":true}, {"name":"AB_SOURCESYSTEM","type":"string","nullable":false}, {"name":"RATEFLOOR","type":"decimal","nullable":true}
+  ]},
+  {"table_name":"AFSJordanContract","source_file":"AFSJordanContract.AFSContractImport","columns":[
+    {"name":"BALANCESHEETDATE","type":"integer","nullable":false}, {"name":"CONTRACTREFERENCE","type":"string","nullable":false}, {"name":"CONTRACTDESCRIPTION","type":"string","nullable":false},
+    {"name":"PRODUCTTYPE","type":"string","nullable":false}, {"name":"ACCOUNTREFERENCE","type":"integer","nullable":false}, {"name":"ACCOUNTTYPE","type":"string","nullable":false},
+    {"name":"ACCOUNTNATURE","type":"string","nullable":false}, {"name":"BOOK","type":"string","nullable":false}, {"name":"BALANCE","type":"decimal","nullable":false},
+    {"name":"CURRENCY","type":"string","nullable":false}, {"name":"HOLDINGPARTYREFERENCE","type":"string","nullable":false}, {"name":"ORIGINDATE","type":"integer","nullable":false},
+    {"name":"AB_CODE","type":"string","nullable":false}, {"name":"AB_PRODUCTID","type":"string","nullable":true}, {"name":"AB_SOURCESYSTEM","type":"string","nullable":false}
+  ]}
+]}

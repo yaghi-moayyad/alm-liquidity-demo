@@ -1,0 +1,75 @@
+{
+  "version": "1.0",
+  "source_entity": "jordan",
+  "entity_slug": "jordan-bank-demo",
+  "entity_name": "Jordan Bank Data Demo",
+  "country": "Jordan",
+  "base_currency": "JOD",
+  "as_of_date": "2026-09-21",
+  "source_batch": "latest",
+  "portfolio": {
+    "replace_existing": true,
+    "sync_product_catalogue": true,
+    "rules": [
+      {
+        "name": "Illustrative retail current accounts only — replace the condition after inventory review",
+        "source_table": "EquationJordanAccountContract",
+        "where": {
+          "ACCOUNTNATURE": ["LIABILITY"]
+        },
+        "id_prefix": "EQ-AC",
+        "product": "demand_deposit",
+        "principal_column": "BALANCE",
+        "currency_column": "CURRENCY",
+        "liquidity_group": "Retail call",
+        "liquidity_product_column": "PRODUCTTYPE"
+      },
+      {
+        "name": "Illustrative loan schedule — confirm all fields and payment convention",
+        "source_table": "EquationJordanLoanContract",
+        "where": {
+          "ACCOUNTNATURE": ["ASSET"]
+        },
+        "id_prefix": "EQ-LN",
+        "product": "loan",
+        "principal_column": "PRINCIPAL",
+        "currency_column": "CURRENCY",
+        "liquidity_group": "Retail term",
+        "liquidity_product_column": "PRODUCTTYPE",
+        "annual_rate_column": "FIXEDRATE",
+        "annual_rate_scale": "decimal",
+        "rate_type_column": "INTERESTRATETYPE",
+        "repayment": "bullet",
+        "day_count": "ACT/365F",
+        "frequency_months": 3,
+        "accrual_start_column": "ORIGINDATE",
+        "next_payment_column": "INTERESTBREAKINGDATE",
+        "maturity_column": "MATURITYDATE"
+      }
+    ]
+  },
+  "regulatory": {
+    "enabled": false,
+    "replace_current_positions": true,
+    "lcr_rules": [
+      {
+        "name": "Illustrative stable-retail LCR mapping — confirm with Regulatory Liquidity",
+        "source_table": "EquationJordanAccountContract",
+        "where": {
+          "ACCOUNTNATURE": ["LIABILITY"]
+        },
+        "id_prefix": "LCR-RSD",
+        "balance_column": "BALANCE",
+        "currency_column": "CURRENCY",
+        "gl_code_column": "AB_CODE",
+        "product_group": "Retail call",
+        "product_type_column": "PRODUCTTYPE",
+        "lcr_category": "retail_stable",
+        "lcr_factor": "0.05",
+        "lcr_direction": "outflow",
+        "hqla_level": ""
+      }
+    ],
+    "nsfr_lines": []
+  }
+}

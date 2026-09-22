@@ -3,14 +3,16 @@ from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from .engine import validate_config, MAX_CONTRACTS, DEFAULT_BUCKETS, PRECISION
-from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, RunContract, LiquidityAssumption, LiquidityAssumptionSet, ProductCatalogueItem
+from .models import CalculationRun, CashFlow, Entity, EntityConfiguration, PortfolioContract, RunContract, LiquidityAssumption, LiquidityAssumptionSet, ProductCatalogueItem
 
 class RunInputSerializer(serializers.Serializer):
     entity = serializers.SlugField(max_length=64)
     as_of_date = serializers.DateField()
     bucket_days = serializers.ListField(child=serializers.IntegerField(min_value=1,max_value=36500),default=list(DEFAULT_BUCKETS),min_length=1,max_length=30)
-    contracts = serializers.ListField(child=serializers.JSONField(),min_length=1,max_length=MAX_CONTRACTS,
+    contracts = serializers.ListField(child=serializers.JSONField(),min_length=1,max_length=MAX_CONTRACTS,required=False,
         help_text='Contract objects. Individual invalid/unsupported contracts appear in run exceptions; see sample endpoint and API guide for fields.')
+    use_saved_portfolio = serializers.BooleanField(default=False, required=False,
+        help_text='Retrieve the selected entity portfolio on the server. Required for bank-scale calculations.')
     calculation_basis = serializers.ChoiceField(choices=['contractual','behavioral'], default='contractual', required=False)
 
     def to_internal_value(self, data):
@@ -23,11 +25,26 @@ class RunInputSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
     def validate(self,attrs):
-        if not Entity.objects.filter(slug=attrs['entity']).exists():
+        entity=Entity.objects.filter(slug=attrs['entity']).first()
+        if not entity:
             raise serializers.ValidationError({'entity':'Select an existing entity.'})
+        saved=attrs.get('use_saved_portfolio',False)
+        if saved and attrs.get('contracts'):
+            raise serializers.ValidationError({'contracts':'Do not send contracts when using the saved portfolio.'})
+        if not saved and not attrs.get('contracts'):
+            raise serializers.ValidationError({'contracts':'Provide contracts or select use_saved_portfolio.'})
+        if saved and not PortfolioContract.objects.filter(entity=entity).exists():
+            raise serializers.ValidationError({'portfolio':'The saved portfolio is empty.'})
         attrs['as_of_date']=attrs['as_of_date'].isoformat()
         try: validate_config(attrs)
-        except (ValueError,TypeError) as exc: raise serializers.ValidationError(str(exc))
+        except (ValueError,TypeError) as exc:
+            if not saved: raise serializers.ValidationError(str(exc))
+            # The execution configuration is valid; the bank portfolio itself
+            # is intentionally hydrated only on the server after validation.
+            preview=dict(attrs)
+            preview['contracts']=[{'contract_id':'server-portfolio-preview','product':'loan','currency':'JOD','principal':'1'}]
+            try: validate_config(preview)
+            except (ValueError,TypeError) as preview_error: raise serializers.ValidationError(str(preview_error))
         return attrs
 
 class RunListSerializer(serializers.ModelSerializer):
@@ -114,7 +131,7 @@ class EntitySettingsSerializer(serializers.ModelSerializer):
     forward_curve=ForwardCurvePointSerializer(many=True,required=False)
     class Meta:
         model=EntityConfiguration
-        fields=['as_of_date','interest_projection','forward_curve','updated']
+        fields=['as_of_date','interest_projection','forward_curve','proxy_maturity_enabled','proxy_maturity_date','proxy_maturity_scope','updated']
         read_only_fields=['as_of_date','updated']
     def validate_interest_projection(self,value):
         if value not in ('constant','forward_curve'):
@@ -123,7 +140,25 @@ class EntitySettingsSerializer(serializers.ModelSerializer):
     def validate(self,attrs):
         if attrs.get('interest_projection',self.instance.interest_projection if self.instance else 'constant') == 'forward_curve' and not attrs.get('forward_curve', self.instance.forward_curve if self.instance else []):
             raise serializers.ValidationError({'forward_curve':'Add at least one curve point before using the market forward curve.'})
+        enabled=attrs.get('proxy_maturity_enabled',self.instance.proxy_maturity_enabled if self.instance else False)
+        maturity=attrs.get('proxy_maturity_date',self.instance.proxy_maturity_date if self.instance else None)
+        as_of=self.instance.as_of_date if self.instance else None
+        if enabled and not maturity:
+            raise serializers.ValidationError({'proxy_maturity_date':'Set a proxy maturity date before enabling the policy.'})
+        if enabled and as_of and maturity <= as_of:
+            raise serializers.ValidationError({'proxy_maturity_date':'Proxy maturity must be after the current reporting date.'})
         return attrs
+
+class CalculationDefaultsSerializer(serializers.ModelSerializer):
+    bucket_days=serializers.ListField(child=serializers.IntegerField(min_value=1,max_value=36500),min_length=1,max_length=30)
+    class Meta:
+        model=EntityConfiguration
+        fields=['as_of_date','bucket_days','revision','updated']
+        read_only_fields=['revision','updated']
+    def validate_bucket_days(self,value):
+        if value != sorted(set(value)):
+            raise serializers.ValidationError('Use strictly increasing bucket boundaries.')
+        return value
 
 class LiquidityAssumptionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -182,6 +217,8 @@ class PortfolioInputSerializer(RunInputSerializer):
     def validate(self,attrs):
         revision=attrs.pop('expected_revision')
         attrs=super().validate(attrs)
+        if attrs.get('use_saved_portfolio'):
+            raise serializers.ValidationError({'use_saved_portfolio':'Portfolio updates must include an explicit contract list.'})
         ids=[]
         import re
         for contract in attrs['contracts']:
@@ -198,6 +235,15 @@ class PortfolioResponseSerializer(serializers.Serializer):
     as_of_date=serializers.DateField()
     bucket_days=serializers.ListField(child=serializers.IntegerField())
     revision=serializers.IntegerField()
+
+
+class PortfolioContractQuerySerializer(serializers.Serializer):
+    """Bounded, indexed portfolio browsing for bank-scale entities."""
+    q=serializers.CharField(required=False,max_length=64,trim_whitespace=True)
+    currency=serializers.ChoiceField(required=False,choices=list(PRECISION))
+    product=serializers.CharField(required=False,max_length=32)
+    offset=serializers.IntegerField(default=0,min_value=0)
+    limit=serializers.IntegerField(default=50,min_value=1,max_value=100)
 
 class ValidationResponseSerializer(serializers.Serializer):
     accepted_count=serializers.IntegerField()

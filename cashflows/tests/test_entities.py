@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from rest_framework.test import APIClient
-from cashflows.models import Entity,PortfolioContract,CalculationRun
+from cashflows.models import Entity,PortfolioContract,CalculationRun,RunContract
 from cashflows.sample import sample
 from cashflows.services import execute_run
 
@@ -58,6 +58,24 @@ class EntityTests(TestCase):
         self.assertEqual(r.status_code,200)
         self.assertEqual(r.data['accepted_count'],11)
         self.assertEqual(CalculationRun.objects.count(),0)
+
+    def test_saved_portfolio_run_snapshots_terms_without_putting_contracts_in_run_json(self):
+        entity=Entity.objects.get(slug='jordan-mock')
+        payload={'entity':entity.slug,'as_of_date':entity.configuration.as_of_date.isoformat(),
+                 'bucket_days':entity.configuration.bucket_days,'use_saved_portfolio':True}
+        response=self.client.post('/api/v1/runs',payload,format='json')
+        self.assertEqual(response.status_code,202,response.data)
+        run=CalculationRun.objects.get(pk=response.data['id'])
+        self.assertNotIn('contracts',run.input_payload)
+        self.assertEqual(RunContract.objects.filter(run=run).count(),entity.portfolio_contracts.count())
+        original=RunContract.objects.filter(run=run).order_by('contract_id').first().terms
+        current=entity.portfolio_contracts.order_by('external_id').first()
+        current.terms={**current.terms,'principal':'1.000'}
+        current.save(update_fields=['terms','updated'])
+        self.assertEqual(RunContract.objects.filter(run=run).order_by('contract_id').first().terms,original)
+        execute_run(run.id)
+        run.refresh_from_db()
+        self.assertIn(run.status,{'completed','completed_with_exceptions'})
     def test_baseline_seed_is_idempotent(self):
         call_command('seed_demo',username=self.staff.username,verbosity=0)
         call_command('seed_demo',username=self.staff.username,verbosity=0)

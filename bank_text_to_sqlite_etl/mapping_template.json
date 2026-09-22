@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "source_entity": "jordan",
+  "entity_slug": "jordan-bank-demo",
+  "entity_name": "Jordan Bank Data Demo",
+  "country": "Jordan",
+  "base_currency": "JOD",
+  "as_of_date": "AUTO",
+  "source_batch": "latest",
+  "portfolio": {
+    "replace_existing": true,
+    "sync_product_catalogue": true,
+    "rules": []
+  },
+  "regulatory": {
+    "enabled": false,
+    "replace_current_positions": true,
+    "lcr_rules": [],
+    "nsfr_lines": []
+  }
+}

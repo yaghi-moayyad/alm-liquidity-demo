@@ -41,6 +41,17 @@ class EngineTests(unittest.TestCase):
         _,f,_=schedule(contract(annual_rate='0',repayment='level_payment'),date(2026,1,1))
         self.assertEqual([x['total'] for x in f],['400.000']*3)
 
+    def test_explicit_bank_cashflow_schedule_has_priority_over_generated_terms(self):
+        supplied=contract(rate_type='floating',cashflows=[
+            {'payment_date':'2026-02-15','principal':'300.000','interest':'7.500','accrual_start':'2026-01-01','accrual_end':'2026-02-15'},
+            {'payment_date':'2026-06-15','principal':'900.000','interest':'12.500','accrual_start':'2026-02-15','accrual_end':'2026-06-15'},
+        ])
+        base,flows,_=schedule(supplied,date(2026,1,1))
+        self.assertEqual(base['repayment'],'bank_cashflow_schedule')
+        self.assertTrue(base['principal_check'])
+        self.assertEqual([flow['total'] for flow in flows],['307.500','912.500'])
+        self.assertEqual(flows[-1]['remaining_principal'],'0.000')
+
     def test_stub_and_end_of_month(self):
         c=contract(accrual_start='2026-01-31',next_payment='2026-02-28',maturity='2026-05-15',end_of_month=True)
         _,f,_=schedule(c,date(2026,1,31))

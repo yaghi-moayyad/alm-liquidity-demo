@@ -21,6 +21,12 @@ class EntityConfiguration(models.Model):
     bucket_days = models.JSONField(default=list)
     interest_projection = models.CharField(max_length=24, default='constant')
     forward_curve = models.JSONField(default=list)
+    # A controlled fallback for genuinely undated bank positions.  The source
+    # MaturityDate is never overwritten: a calculation snapshots this policy
+    # and marks resulting flows as proxy-maturity flows.
+    proxy_maturity_enabled = models.BooleanField(default=False)
+    proxy_maturity_date = models.DateField(null=True, blank=True)
+    proxy_maturity_scope = models.JSONField(default=dict)
     revision = models.PositiveIntegerField(default=1)
     updated = models.DateTimeField(auto_now=True)
 
@@ -160,6 +166,12 @@ class LcrStressRun(models.Model):
         ordering = ['-created']
 
 class PortfolioContract(models.Model):
+    """Current canonical contract terms for one entity.
+
+    This is deliberately a narrow calculation-facing representation, not a
+    copy of the bank source tables.  Bank extraction/staging stays outside the
+    application and publishes only approved canonical terms here.
+    """
     entity = models.ForeignKey(Entity, on_delete=models.CASCADE, related_name='portfolio_contracts')
     external_id = models.CharField(max_length=64)
     terms = models.JSONField()
@@ -206,13 +218,20 @@ class CalculationRun(models.Model):
         return f'{self.id} · {self.as_of_date} · {self.status}'
 
 class RunContract(models.Model):
-    """Small searchable index of the contracts accepted into a saved run."""
+    """Immutable, searchable contract snapshot used by a calculation run.
+
+    ``terms`` is populated before a saved-portfolio run is queued.  Keeping
+    the terms in database rows avoids putting a whole bank portfolio into one
+    JSON column on ``CalculationRun`` and means a later ETL refresh cannot
+    change a historical calculation.
+    """
     run = models.ForeignKey(CalculationRun, on_delete=models.CASCADE, related_name='contract_index')
     contract_id = models.CharField(max_length=64)
     contract_id_key = models.CharField(max_length=64)
     product = models.CharField(max_length=32)
     currency = models.CharField(max_length=3)
     direction = models.CharField(max_length=8)
+    terms = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ['contract_id']
@@ -237,6 +256,7 @@ class CashFlow(models.Model):
     total = models.DecimalField(max_digits=24, decimal_places=3)
     remaining_principal = models.DecimalField(max_digits=24, decimal_places=3)
     bucket = models.CharField(max_length=64)
+    maturity_source = models.CharField(max_length=24, default='bank')
 
     class Meta:
         ordering = ['sequence']
