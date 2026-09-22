@@ -65,6 +65,11 @@ def readiness_issue(contract, as_of_date):
     scoped to source table + product + issue and is applied only to a run
     snapshot, exactly like a governed Fusion-style data adjustment.
     """
+    # DRF submits ISO strings while persisted Django runs provide date objects.
+    # Treat both representations identically at this service boundary.
+    as_of_date=_safe_date(as_of_date)
+    if not as_of_date:
+        return 'invalid_reporting_date'
     if str(contract.get('product')) not in DATED_PRODUCTS:
         return None
     maturity=_safe_date(contract.get('maturity'))
