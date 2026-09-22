@@ -16,7 +16,8 @@ The update contains only frontend code. It does not add migrations or change cal
 
 What changes:
 
-- Overview: replaces the liquidity runway with a regulatory-trend chart and a near-term obligations-and-capacity chart.
+- Overview: becomes a compact CRO cockpit, without changing its navigation name or removing the detailed LCR, NSFR, stress-testing or ladder pages.
+- Overview: replaces the liquidity runway with a full-width regulatory trend, full-width maturity-pressure chart, a principal gap-ratio heat strip, and a calculated LCR stress-resilience view.
 - Overview: adds clear LCR and NSFR movement explanations for the latest available month; each is clickable and opens the correct report/month.
 - LCR and NSFR: the explanation updates whenever a user selects any historical point from the trend or history table. The wording cites the two deterministic calculated contributors and their percentage-point effect.
 - Liquidity Analytics: makes **Scheduled flows and capacity** a full-width chart.
